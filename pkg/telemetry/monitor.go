@@ -177,6 +177,8 @@ func (m *Monitor) handleMessage(msgType string, body json.RawMessage) {
 		m.handleStandings(body)
 	case "sessionInfo":
 		m.handleSessionInfo(body)
+	default:
+		log.Printf("Unsupported message type: %s, body: %s", msgType, string(body))
 	}
 
 	m.updateDisplay()
