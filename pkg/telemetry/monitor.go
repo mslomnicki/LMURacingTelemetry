@@ -1,0 +1,240 @@
+package telemetry
+
+import (
+	"encoding/json"
+	"fmt"
+	"log"
+	"os"
+	"os/signal"
+	"time"
+
+	"github.com/gorilla/websocket"
+	"github.com/mslomnicki/LMURacingTelemetry/pkg/logger"
+	"github.com/mslomnicki/LMURacingTelemetry/pkg/models"
+	"github.com/mslomnicki/LMURacingTelemetry/pkg/ui"
+)
+
+// Monitor represents the main telemetry monitoring system
+type Monitor struct {
+	conn         *websocket.Conn
+	display      *ui.Display
+	csvLogger    *logger.CSVLogger
+	drivers      map[string]*models.StandingsData
+	driverStats  map[string]*models.DriverStats
+	session      *models.SessionData
+	websocketURL string
+}
+
+// NewMonitor creates a new telemetry monitor
+func NewMonitor(websocketURL string) *Monitor {
+	return &Monitor{
+		display:      ui.NewDisplay(),
+		drivers:      make(map[string]*models.StandingsData),
+		driverStats:  make(map[string]*models.DriverStats),
+		websocketURL: websocketURL,
+	}
+}
+
+// Connect establishes WebSocket connection to the racing simulator
+func (m *Monitor) Connect() error {
+	var err error
+	m.conn, _, err = websocket.DefaultDialer.Dial(m.websocketURL, nil)
+	if err != nil {
+		return fmt.Errorf("failed to connect to WebSocket: %w", err)
+	}
+	return nil
+}
+
+// Run starts the telemetry monitoring system
+func (m *Monitor) Run() error {
+	// Connect to WebSocket
+	if err := m.Connect(); err != nil {
+		return err
+	}
+
+	// Setup UI
+	m.display.Setup()
+
+	// Start listening for WebSocket messages in a goroutine
+	go m.listenForMessages()
+
+	// Handle interrupts
+	interrupt := make(chan os.Signal, 1)
+	signal.Notify(interrupt, os.Interrupt)
+
+	go func() {
+		<-interrupt
+		m.cleanup()
+		m.display.Stop()
+	}()
+
+	// Run the application
+	return m.display.Run()
+}
+
+// listenForMessages continuously reads and processes WebSocket messages
+func (m *Monitor) listenForMessages() {
+	defer m.conn.Close()
+
+	for {
+		_, message, err := m.conn.ReadMessage()
+		if err != nil {
+			log.Printf("WebSocket read error: %v", err)
+			return
+		}
+
+		var wsMsg models.WSMessage
+		if err := json.Unmarshal(message, &wsMsg); err != nil {
+			log.Printf("Error unmarshaling WebSocket message: %v", err)
+			continue
+		}
+
+		// Convert body to json.RawMessage for handling
+		bodyBytes, err := json.Marshal(wsMsg.Body)
+		if err != nil {
+			log.Printf("Error marshaling message body: %v", err)
+			continue
+		}
+
+		m.handleMessage(wsMsg.Type, bodyBytes)
+	}
+}
+
+// handleMessage processes different types of WebSocket messages
+func (m *Monitor) handleMessage(msgType string, body json.RawMessage) {
+	switch msgType {
+	case "standings":
+		m.handleStandings(body)
+	case "sessionInfo":
+		m.handleSessionInfo(body)
+	}
+
+	m.updateDisplay()
+}
+
+// handleStandings processes driver standings data
+func (m *Monitor) handleStandings(body json.RawMessage) {
+	var standings []models.StandingsData
+	if err := json.Unmarshal(body, &standings); err != nil {
+		log.Printf("Error unmarshaling standings: %v", err)
+		return
+	}
+
+	// Update all drivers
+	for _, driver := range standings {
+		key := fmt.Sprintf("%d", driver.SlotID)
+		m.drivers[key] = &driver
+		m.updateDriverStats(&driver)
+		m.logDriverData(&driver)
+	}
+}
+
+// handleSessionInfo processes session information
+func (m *Monitor) handleSessionInfo(body json.RawMessage) {
+	var session models.SessionData
+	if err := json.Unmarshal(body, &session); err != nil {
+		log.Printf("Error unmarshaling session info: %v", err)
+		return
+	}
+
+	m.session = &session
+
+	// Initialize CSV logger if not already done
+	if m.csvLogger == nil && m.session != nil {
+		var err error
+		m.csvLogger, err = logger.NewCSVLogger(m.session)
+		if err != nil {
+			log.Printf("Error initializing CSV logger: %v", err)
+		} else {
+			log.Printf("CSV logging initialized for %s - %s", m.session.TrackName, m.session.Session)
+		}
+	}
+}
+
+// updateDriverStats maintains historical statistics for each driver
+func (m *Monitor) updateDriverStats(driver *models.StandingsData) {
+	key := fmt.Sprintf("%d", driver.SlotID)
+
+	stats, exists := m.driverStats[key]
+	if !exists {
+		stats = &models.DriverStats{
+			DriverName:  driver.DriverName,
+			VehicleName: driver.VehicleName,
+			CarClass:    driver.CarClass,
+		}
+		m.driverStats[key] = stats
+	}
+
+	// Update basic info
+	stats.DriverName = driver.DriverName
+	stats.VehicleName = driver.VehicleName
+	stats.CarClass = driver.CarClass
+	stats.Position = driver.Position
+	stats.LapsCompleted = driver.LapsCompleted
+	stats.LastUpdate = time.Now()
+
+	// Update max speed
+	currentSpeed := driver.CarVelocity.Velocity * 3.6 // Convert to km/h
+	if currentSpeed > stats.MaxSpeed {
+		stats.MaxSpeed = currentSpeed
+	}
+
+	// Update best times
+	if driver.BestLapTime > 0 && (stats.BestLapTime == 0 || driver.BestLapTime < stats.BestLapTime) {
+		stats.BestLapTime = driver.BestLapTime
+	}
+	if driver.BestSectorTime1 > 0 && (stats.BestSector1 == 0 || driver.BestSectorTime1 < stats.BestSector1) {
+		stats.BestSector1 = driver.BestSectorTime1
+	}
+
+	// Calculate Sector 2 (BestSectorTime2 - BestSectorTime1) and Sector 3 (BestLapTime - BestSectorTime2)
+	if driver.BestSectorTime2 > 0 && driver.BestSectorTime1 > 0 {
+		sector2Time := driver.BestSectorTime2 - driver.BestSectorTime1
+		if sector2Time > 0 && (stats.BestSector2 == 0 || sector2Time < stats.BestSector2) {
+			stats.BestSector2 = sector2Time
+		}
+	}
+
+	if driver.BestLapTime > 0 && driver.BestSectorTime2 > 0 {
+		sector3Time := driver.BestLapTime - driver.BestSectorTime2
+		if sector3Time > 0 && (stats.BestSector3 == 0 || sector3Time < stats.BestSector3) {
+			stats.BestSector3 = sector3Time
+		}
+	}
+}
+
+// logDriverData updates driver data in CSV logger (most recent state only)
+func (m *Monitor) logDriverData(driver *models.StandingsData) {
+	if m.csvLogger == nil {
+		return
+	}
+
+	// Get stats for this driver
+	key := fmt.Sprintf("%d", driver.SlotID)
+	if stats, exists := m.driverStats[key]; exists {
+		m.csvLogger.UpdateDriver(driver, stats)
+	}
+}
+
+// updateDisplay refreshes all UI components
+func (m *Monitor) updateDisplay() {
+	m.display.UpdateSession(m.session)
+	m.display.UpdateDrivers(m.drivers)
+	m.display.UpdateStats(m.driverStats)
+	m.display.Draw()
+}
+
+// cleanup performs cleanup operations on shutdown
+func (m *Monitor) cleanup() {
+	if m.csvLogger != nil {
+		if err := m.csvLogger.Close(); err != nil {
+			log.Printf("Error closing CSV logger: %v", err)
+		} else {
+			log.Println("CSV logging stopped")
+		}
+	}
+
+	if m.conn != nil {
+		m.conn.Close()
+	}
+}
