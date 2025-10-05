@@ -45,8 +45,8 @@ func (d *Display) Setup() {
 
 	// Create a grid layout with 4 rows and 2 columns for bottom row
 	grid := tview.NewGrid().
-		SetRows(8, 0, 10, 3).
-		SetColumns(0, 30).
+		SetRows(5, 0, 20).
+		SetColumns(0, 60).
 		SetBorders(true)
 
 	// Add components to grid
@@ -56,9 +56,8 @@ func (d *Display) Setup() {
 
 	// Wrap grid in a Frame with app name and version as the title
 	frame := tview.NewFrame(grid).
-		SetBorders(0, 0, 0, 0, 1, 1).
-		SetTitle(fmt.Sprintf("LMU Racing Telemetry %s", Version)).
-		SetTitleAlign(tview.AlignCenter)
+		SetBorders(0, 0, 0, 0, 0, 0).
+		AddText(fmt.Sprintf("LMU Racing Telemetry %s", Version), true, tview.AlignCenter, tcell.ColorBlue)
 
 	d.app.SetRoot(frame, true).EnableMouse(true)
 
