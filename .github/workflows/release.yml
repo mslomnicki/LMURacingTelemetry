@@ -78,44 +78,11 @@ jobs:
       run: |
         go build -ldflags="-s -w" -o lmu-racing-telemetry-macos-arm64 .
         
-    - name: Create release notes
-      run: |
-        cat > release_notes.md << 'EOF'
-        ## LMU Racing Telemetry ${{ steps.version.outputs.VERSION }}
-        
-        ### Features
-        - Real-time telemetry display for Le Mans Ultimate racing simulator
-        - Multi-driver simultaneous monitoring
-        - CSV logging with auto-generated filenames
-        - Dynamic table scaling UI
-        - 3-sector timing display (S1, S2, S3)
-        
-        ### Usage
-        ```bash
-        # Default connection (localhost:6398)
-        ./lmu-racing-telemetry
-        
-        # Custom host and port
-        ./lmu-racing-telemetry -host 192.168.1.100 -port 6399
-        ```
-        
-        ### Binaries
-        - **Windows AMD64**: `lmu-racing-telemetry-windows-amd64.exe`
-        - **Linux AMD64**: `lmu-racing-telemetry-linux-amd64`
-        - **macOS AMD64**: `lmu-racing-telemetry-macos-amd64`
-        - **macOS ARM64**: `lmu-racing-telemetry-macos-arm64`
-        
-        ### Requirements
-        - Le Mans Ultimate with WebSocket telemetry enabled
-        - Network access to the racing simulator
-        EOF
-        
     - name: Create Release
       uses: softprops/action-gh-release@v1
       with:
         tag_name: ${{ steps.version.outputs.VERSION }}
         name: "LMU Racing Telemetry ${{ steps.version.outputs.VERSION }}"
-        body_path: release_notes.md
         draft: false
         prerelease: false
         files: |
