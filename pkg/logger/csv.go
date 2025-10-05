@@ -69,7 +69,7 @@ func (l *CSVLogger) WriteCurrentState() error {
 
 	// Write CSV header
 	header := []string{
-		"DriverName", "VehicleName", "CarClass",
+		"SteamID", "DriverName", "VehicleName", "CarClass",
 		"LapsCompleted", "MaxSpeed", "BestLapTime",
 		"BestSector1", "BestSector2", "BestSector3",
 	}
@@ -100,6 +100,7 @@ func (l *CSVLogger) WriteCurrentState() error {
 		stats := pair.stats
 
 		record := []string{
+			fmt.Sprintf("%d", driver.SteamID),
 			driver.DriverName,
 			driver.VehicleName,
 			driver.CarClass,

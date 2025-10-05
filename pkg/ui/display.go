@@ -10,12 +10,15 @@ import (
 	"github.com/rivo/tview"
 )
 
+var Version = "dev"
+
 // Display handles the terminal user interface
 type Display struct {
 	app        *tview.Application
 	sessionBox *tview.TextView
 	driversBox *tview.TextView
 	statsBox   *tview.TextView
+	versionBox *tview.TextView
 }
 
 // NewDisplay creates a new UI display
@@ -30,25 +33,34 @@ func (d *Display) Setup() {
 	// Create text views for different data sections
 	d.sessionBox = tview.NewTextView()
 	d.sessionBox.SetBorder(true).SetTitle(" Session Info ").SetTitleAlign(tview.AlignLeft)
+	d.sessionBox.SetDynamicColors(true)
 
 	d.driversBox = tview.NewTextView()
 	d.driversBox.SetBorder(true).SetTitle(" All Drivers - Live Data ").SetTitleAlign(tview.AlignLeft)
+	d.driversBox.SetDynamicColors(true)
 
 	d.statsBox = tview.NewTextView()
 	d.statsBox.SetBorder(true).SetTitle(" Driver Statistics & Records ").SetTitleAlign(tview.AlignLeft)
+	d.statsBox.SetDynamicColors(true)
 
-	// Create a grid layout
+	// Create a grid layout with 4 rows and 2 columns for bottom row
 	grid := tview.NewGrid().
-		SetRows(8, 0, 12).
-		SetColumns(0).
+		SetRows(8, 0, 10, 3).
+		SetColumns(0, 30).
 		SetBorders(true)
 
 	// Add components to grid
-	grid.AddItem(d.sessionBox, 0, 0, 1, 1, 0, 0, false).
-		AddItem(d.driversBox, 1, 0, 1, 1, 0, 0, false).
-		AddItem(d.statsBox, 2, 0, 1, 1, 0, 0, false)
+	grid.AddItem(d.sessionBox, 0, 0, 1, 2, 0, 0, false).
+		AddItem(d.driversBox, 1, 0, 1, 2, 0, 0, false).
+		AddItem(d.statsBox, 2, 0, 1, 2, 0, 0, false)
 
-	d.app.SetRoot(grid, true).EnableMouse(true)
+	// Wrap grid in a Frame with app name and version as the title
+	frame := tview.NewFrame(grid).
+		SetBorders(0, 0, 0, 0, 1, 1).
+		SetTitle(fmt.Sprintf("LMU Racing Telemetry %s", Version)).
+		SetTitleAlign(tview.AlignCenter)
+
+	d.app.SetRoot(frame, true).EnableMouse(true)
 
 	// Handle Ctrl+C to exit
 	d.app.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {

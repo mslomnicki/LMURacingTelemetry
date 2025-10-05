@@ -6,6 +6,7 @@ import (
 	"log"
 
 	"github.com/mslomnicki/LMURacingTelemetry/pkg/telemetry"
+	"github.com/mslomnicki/LMURacingTelemetry/pkg/ui"
 )
 
 func main() {
@@ -19,11 +20,10 @@ func main() {
 	// Create and configure telemetry monitor
 	monitor := telemetry.NewMonitor(websocketURL)
 
-	fmt.Printf("Starting LMU Racing Telemetry Monitor...\n")
+	fmt.Printf("Starting LMU Racing Telemetry Monitor %s...\n", ui.Version)
 	fmt.Printf("Connecting to %s\n", websocketURL)
 	fmt.Printf("Press Ctrl+C to exit\n\n")
 
-	// Run the telemetry monitor
 	if err := monitor.Run(); err != nil {
 		log.Fatalf("Error running telemetry monitor: %v", err)
 	}

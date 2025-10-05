@@ -23,6 +23,8 @@ type Monitor struct {
 	driverStats  map[string]*models.DriverStats
 	session      *models.SessionData
 	websocketURL string
+	reconnecting bool
+	stopChan     chan struct{}
 }
 
 // NewMonitor creates a new telemetry monitor
@@ -32,6 +34,7 @@ func NewMonitor(websocketURL string) *Monitor {
 		drivers:      make(map[string]*models.StandingsData),
 		driverStats:  make(map[string]*models.DriverStats),
 		websocketURL: websocketURL,
+		stopChan:     make(chan struct{}),
 	}
 }
 
@@ -42,21 +45,77 @@ func (m *Monitor) Connect() error {
 	if err != nil {
 		return fmt.Errorf("failed to connect to WebSocket: %w", err)
 	}
+	log.Printf("Connected to WebSocket: %s", m.websocketURL)
 	return nil
+}
+
+// connectWithRetry attempts to connect with automatic retry
+func (m *Monitor) connectWithRetry() {
+	backoff := time.Second
+	maxBackoff := 30 * time.Second
+
+	for {
+		select {
+		case <-m.stopChan:
+			return
+		default:
+		}
+
+		if !m.reconnecting {
+			log.Printf("Attempting to connect to WebSocket...")
+		} else {
+			log.Printf("Attempting to reconnect to WebSocket...")
+		}
+
+		if err := m.Connect(); err != nil {
+			if !m.reconnecting {
+				log.Printf("Initial connection failed: %v. Retrying in %v...", err, backoff)
+			} else {
+				log.Printf("Reconnection failed: %v. Retrying in %v...", err, backoff)
+			}
+
+			select {
+			case <-time.After(backoff):
+				backoff = time.Duration(float64(backoff) * 1.5)
+				if backoff > maxBackoff {
+					backoff = maxBackoff
+				}
+			case <-m.stopChan:
+				return
+			}
+			continue
+		}
+
+		if m.reconnecting {
+			log.Printf("Reconnected successfully!")
+			m.reconnecting = false
+		}
+
+		// Start listening for messages
+		m.listenForMessages()
+
+		// If we reach here, connection was lost
+		if m.conn != nil {
+			m.conn.Close()
+		}
+
+		select {
+		case <-m.stopChan:
+			return
+		default:
+			m.reconnecting = true
+			backoff = time.Second // Reset backoff on disconnect
+		}
+	}
 }
 
 // Run starts the telemetry monitoring system
 func (m *Monitor) Run() error {
-	// Connect to WebSocket
-	if err := m.Connect(); err != nil {
-		return err
-	}
-
 	// Setup UI
 	m.display.Setup()
 
-	// Start listening for WebSocket messages in a goroutine
-	go m.listenForMessages()
+	// Start WebSocket connection with auto-reconnect in a goroutine
+	go m.connectWithRetry()
 
 	// Handle interrupts
 	interrupt := make(chan os.Signal, 1)
@@ -64,6 +123,7 @@ func (m *Monitor) Run() error {
 
 	go func() {
 		<-interrupt
+		close(m.stopChan)
 		m.cleanup()
 		m.display.Stop()
 	}()
@@ -74,9 +134,19 @@ func (m *Monitor) Run() error {
 
 // listenForMessages continuously reads and processes WebSocket messages
 func (m *Monitor) listenForMessages() {
-	defer m.conn.Close()
+	defer func() {
+		if m.conn != nil {
+			m.conn.Close()
+		}
+	}()
 
 	for {
+		select {
+		case <-m.stopChan:
+			return
+		default:
+		}
+
 		_, message, err := m.conn.ReadMessage()
 		if err != nil {
 			log.Printf("WebSocket read error: %v", err)
@@ -226,6 +296,8 @@ func (m *Monitor) updateDisplay() {
 
 // cleanup performs cleanup operations on shutdown
 func (m *Monitor) cleanup() {
+	log.Println("Shutting down...")
+
 	if m.csvLogger != nil {
 		if err := m.csvLogger.Close(); err != nil {
 			log.Printf("Error closing CSV logger: %v", err)
