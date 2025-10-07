@@ -45,14 +45,14 @@ func (d *Display) Setup() {
 
 	// Create a grid layout with 4 rows and 2 columns for bottom row
 	grid := tview.NewGrid().
-		SetRows(5, 0, 20).
+		SetRows(4, 0, 0).
 		SetColumns(0, 60).
 		SetBorders(true)
 
 	// Add components to grid
-	grid.AddItem(d.sessionBox, 0, 0, 1, 2, 0, 0, false).
-		AddItem(d.driversBox, 1, 0, 1, 2, 0, 0, false).
-		AddItem(d.statsBox, 2, 0, 1, 2, 0, 0, false)
+	grid.AddItem(d.sessionBox, 0, 0, 1, 1, 0, 0, false).
+		AddItem(d.driversBox, 1, 0, 1, 1, 0, 0, false).
+		AddItem(d.statsBox, 2, 0, 1, 1, 0, 0, false)
 
 	// Wrap grid in a Frame with app name and version as the title
 	frame := tview.NewFrame(grid).
@@ -132,14 +132,14 @@ func (d *Display) UpdateDrivers(drivers map[string]*models.StandingsData) {
 	}
 
 	// Limit maximum column widths to keep table readable
-	if maxDriverName > 25 {
-		maxDriverName = 25
+	if maxDriverName > 40 {
+		maxDriverName = 40
 	}
-	if maxVehicleName > 20 {
-		maxVehicleName = 20
+	if maxVehicleName > 40 {
+		maxVehicleName = 40
 	}
-	if maxStatus > 12 {
-		maxStatus = 12
+	if maxStatus > 20 {
+		maxStatus = 20
 	}
 
 	// Create format strings with dynamic widths
