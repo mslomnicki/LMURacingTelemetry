@@ -229,6 +229,17 @@ func (m *Monitor) handleSessionInfo(body json.RawMessage) {
 func (m *Monitor) updateDriverStats(driver *models.StandingsData) {
 	key := fmt.Sprintf("%d", driver.SlotID)
 
+	const maxReasonableTimeIntoLap = 600.0 // 10 minutes in seconds
+	if driver.TimeIntoLap < 0 || driver.TimeIntoLap > maxReasonableTimeIntoLap {
+		filteredDriver := *driver
+		if stats, exists := m.driverStats[key]; exists && stats.LastValidTimeIntoLap >= 0 {
+			filteredDriver.TimeIntoLap = stats.LastValidTimeIntoLap
+		} else {
+			filteredDriver.TimeIntoLap = 0
+		}
+		driver = &filteredDriver
+	}
+
 	stats, exists := m.driverStats[key]
 	if !exists {
 		stats = &models.DriverStats{
@@ -246,6 +257,10 @@ func (m *Monitor) updateDriverStats(driver *models.StandingsData) {
 	stats.Position = driver.Position
 	stats.LapsCompleted = driver.LapsCompleted
 	stats.LastUpdate = time.Now()
+
+	if driver.TimeIntoLap >= 0 && driver.TimeIntoLap <= maxReasonableTimeIntoLap {
+		stats.LastValidTimeIntoLap = driver.TimeIntoLap
+	}
 
 	// Update max speed
 	currentSpeed := driver.CarVelocity.Velocity * 3.6 // Convert to km/h
