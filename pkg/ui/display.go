@@ -51,8 +51,8 @@ func (d *Display) Setup() {
 
 	// Add components to grid
 	grid.AddItem(d.sessionBox, 0, 0, 1, 1, 0, 0, false).
-		AddItem(d.driversBox, 1, 0, 1, 1, 0, 0, false).
-		AddItem(d.statsBox, 2, 0, 1, 1, 0, 0, false)
+		AddItem(d.driversBox, 1, 0, 1, 1, 0, 0, true).
+		AddItem(d.statsBox, 2, 0, 1, 1, 0, 0, true)
 
 	// Wrap grid in a Frame with app name and version as the title
 	frame := tview.NewFrame(grid).
@@ -61,9 +61,9 @@ func (d *Display) Setup() {
 
 	d.app.SetRoot(frame, true).EnableMouse(true)
 
-	// Handle Ctrl+C to exit
+	// Handle Ctrl+C and 'q' to exit
 	d.app.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
-		if event.Key() == tcell.KeyCtrlC {
+		if event.Key() == tcell.KeyCtrlC || event.Rune() == 'q' || event.Rune() == 'Q' {
 			d.app.Stop()
 		}
 		return event
