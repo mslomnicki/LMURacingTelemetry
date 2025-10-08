@@ -44,7 +44,8 @@ func NewCSVLogger(session *models.SessionData) (*CSVLogger, error) {
 
 // UpdateDriver updates the driver data (replacing previous data for this driver)
 func (l *CSVLogger) UpdateDriver(driver *models.StandingsData, stats *models.DriverStats) {
-	key := fmt.Sprintf("%d", driver.SlotID)
+	// Use DriverName as key instead of SlotID for consistency
+	key := driver.DriverName
 	l.driverData[key] = driver
 	l.driverStats[key] = stats
 

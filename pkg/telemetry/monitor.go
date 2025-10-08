@@ -196,7 +196,7 @@ func (m *Monitor) handleStandings(body json.RawMessage) {
 
 	// Update all drivers
 	for _, driver := range standings {
-		key := fmt.Sprintf("%d", driver.SlotID)
+		key := driver.DriverName
 		m.drivers[key] = &driver
 		m.updateDriverStats(&driver)
 		m.logDriverData(&driver)
@@ -227,7 +227,7 @@ func (m *Monitor) handleSessionInfo(body json.RawMessage) {
 
 // updateDriverStats maintains historical statistics for each driver
 func (m *Monitor) updateDriverStats(driver *models.StandingsData) {
-	key := fmt.Sprintf("%d", driver.SlotID)
+	key := driver.DriverName
 
 	const maxReasonableTimeIntoLap = 600.0 // 10 minutes in seconds
 	if driver.TimeIntoLap < 0 || driver.TimeIntoLap > maxReasonableTimeIntoLap {
@@ -299,7 +299,7 @@ func (m *Monitor) logDriverData(driver *models.StandingsData) {
 	}
 
 	// Get stats for this driver
-	key := fmt.Sprintf("%d", driver.SlotID)
+	key := driver.DriverName
 	if stats, exists := m.driverStats[key]; exists {
 		m.csvLogger.UpdateDriver(driver, stats)
 	}
