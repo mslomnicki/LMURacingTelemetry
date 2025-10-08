@@ -58,7 +58,7 @@ func (l *CSVLogger) WriteCurrentState() error {
 
 	header := []string{
 		"Position",
-		"SteamID", "DriverName", "CarClass", "VehicleModel", "VehicleName",
+		"SteamID", "DriverName", "CarClass", "VehicleName",
 		"LapsCompleted", "MaxSpeed", "BestLapTime",
 		"BestSector1", "BestSector2", "BestSector3",
 		"MaxSpeedOnBestLap", "BestLapTimeCalculated", "BestSector1Calculated", "BestSector2Calculated", "BestSector3Calculated", "MaxSpeedOnBestLapCalc",
@@ -82,7 +82,6 @@ func (l *CSVLogger) WriteCurrentState() error {
 			fmt.Sprintf("%d", stats.SteamID),
 			stats.DriverName,
 			stats.CarClass,
-			stats.VehicleModel,
 			stats.VehicleName,
 			fmt.Sprintf("%d", stats.LapsCompleted),
 			fmt.Sprintf("%.1f", stats.MaxSpeed),

@@ -40,7 +40,7 @@ func (d *Display) Setup() {
 	d.statsBox.SetDynamicColors(true)
 
 	grid := tview.NewGrid().
-		SetRows(4, 0, 0).
+		SetRows(3, 0, 0).
 		SetBorders(true)
 
 	grid.AddItem(d.sessionBox, 0, 0, 1, 1, 0, 0, false).
@@ -67,11 +67,10 @@ func (d *Display) UpdateSession(session *models.SessionData) {
 	}
 
 	sessionText := fmt.Sprintf(
-		"[yellow]Track:[-] %s  [green]Session:[-] %s  [cyan]Phase:[-] %d\n"+
+		"[yellow]Track:[-] %s  [green]Session:[-] %s  "+
 			"[white]Event Time:[-] %s  [orange]Cars:[-] %d/%d  [red]Track:[-] %.1f°C  [blue]Air:[-] %.1f°C  [gray]Rain:[-] %.1f%%",
 		session.TrackName,
 		session.Session,
-		session.GamePhase,
 		formatTime(session.CurrentEventTime),
 		session.NumberOfVehicles,
 		session.MaxPlayers,
@@ -99,9 +98,9 @@ func (d *Display) UpdateDrivers(drivers map[string]*models.StandingsData) {
 
 	maxDriverName := 6
 	maxClassName := 5
-	maxVehicleName := 7
+	maxVehicleModel := 7
 	maxStatus := 6
-
+	maxVehicleNumber := 4
 	for _, driver := range driverList {
 		if len(driver.DriverName) > maxDriverName {
 			maxDriverName = len(driver.DriverName)
@@ -109,8 +108,11 @@ func (d *Display) UpdateDrivers(drivers map[string]*models.StandingsData) {
 		if len(driver.CarClass) > maxClassName {
 			maxClassName = len(driver.CarClass)
 		}
-		if len(driver.VehicleName) > maxVehicleName {
-			maxVehicleName = len(driver.VehicleName)
+		if len(driver.VehicleModel) > maxVehicleModel {
+			maxVehicleModel = len(driver.VehicleModel)
+		}
+		if len(driver.VehicleNumber) > maxVehicleNumber {
+			maxVehicleNumber = len(driver.VehicleNumber)
 		}
 
 		status := driver.PitState
@@ -128,23 +130,26 @@ func (d *Display) UpdateDrivers(drivers map[string]*models.StandingsData) {
 	if maxClassName > 20 {
 		maxClassName = 20
 	}
-	if maxVehicleName > 40 {
-		maxVehicleName = 40
+	if maxVehicleModel > 40 {
+		maxVehicleModel = 40
+	}
+	if maxVehicleNumber > 4 {
+		maxVehicleNumber = 4
 	}
 	if maxStatus > 20 {
 		maxStatus = 20
 	}
 
-	headerFormat := fmt.Sprintf("%%-%ds %%-%ds %%-%ds %%-%ds %%-%ds %%-%ds %%-%ds %%-%ds %%-%ds\n",
-		3, maxDriverName, maxClassName, maxVehicleName, 4, 8, 8, 6, maxStatus)
-	dataFormat := fmt.Sprintf("%%-%dd %%-%ds %%-%ds %%-%ds %%-%dd %%-%ds %%-%ds %%-%d.0f %%-%ds\n",
-		3, maxDriverName, maxClassName, maxVehicleName, 4, 8, 8, 6, maxStatus)
+	headerFormat := fmt.Sprintf("%%-%ds %%-%ds %%-%ds %%-%ds %%-%ds %%-%ds %%-%ds %%-%ds %%-%ds %%-%ds\n",
+		3, maxDriverName, maxClassName, maxVehicleNumber, maxVehicleModel, 4, 8, 8, 6, maxStatus)
+	dataFormat := fmt.Sprintf("%%-%dd %%-%ds %%-%ds %%%ds %%-%ds %%-%dd %%-%ds %%-%ds %%-%d.0f %%-%ds\n",
+		3, maxDriverName, maxClassName, maxVehicleNumber, maxVehicleModel, 4, 8, 8, 6, maxStatus)
 
 	var driversText strings.Builder
 
 	driversText.WriteString(fmt.Sprintf(headerFormat,
-		"Pos", "Driver", "Class", "Vehicle", "Laps", "CurLap", "BestLap", "Speed", "Status"))
-	totalWidth := 3 + 1 + maxDriverName + 1 + maxClassName + 1 + maxVehicleName + 1 + 4 + 1 + 8 + 1 + 8 + 1 + 6 + 1 + maxStatus
+		"Pos", "Driver", "Class", "No.", "Vehicle", "Laps", "CurLap", "BestLap", "Speed", "Status"))
+	totalWidth := 3 + 1 + maxDriverName + 1 + maxClassName + 1 + maxVehicleNumber + 1 + maxVehicleModel + 1 + 4 + 1 + 8 + 1 + 8 + 1 + 6 + 1 + maxStatus
 	driversText.WriteString(strings.Repeat("-", totalWidth) + "\n")
 
 	for _, driver := range driverList {
@@ -157,7 +162,8 @@ func (d *Display) UpdateDrivers(drivers map[string]*models.StandingsData) {
 			driver.Position,
 			truncate(driver.DriverName, maxDriverName),
 			truncate(driver.CarClass, maxClassName),
-			truncate(driver.VehicleName, maxVehicleName),
+			truncate(driver.VehicleNumber, maxVehicleNumber),
+			truncate(driver.VehicleModel, maxVehicleModel),
 			driver.LapsCompleted,
 			formatTime(driver.TimeIntoLap),
 			formatTime(driver.BestLapTime),
@@ -180,7 +186,15 @@ func (d *Display) UpdateStats(stats map[string]*models.DriverStats) {
 		if statsList[i].BestLapTime <= 0 && statsList[j].BestLapTime <= 0 {
 			return statsList[i].DriverName < statsList[j].DriverName
 		}
-		return statsList[i].BestLapTime > statsList[j].BestLapTime
+		timeA := statsList[i].BestLapTime
+		if timeA <= 0 {
+			timeA = 1e9
+		}
+		timeB := statsList[j].BestLapTime
+		if timeB <= 0 {
+			timeB = 1e9
+		}
+		return timeA < timeB
 	})
 
 	if len(statsList) == 0 {
@@ -189,48 +203,56 @@ func (d *Display) UpdateStats(stats map[string]*models.DriverStats) {
 	}
 
 	maxDriverName := 6
-	maxVehicleName := 7
+	maxVehicleModel := 7
 	maxClassName := 5
+	maxVehicleNumber := 4
 
 	for _, stat := range statsList {
 		if len(stat.DriverName) > maxDriverName {
 			maxDriverName = len(stat.DriverName)
 		}
-		if len(stat.VehicleName) > maxVehicleName {
-			maxVehicleName = len(stat.VehicleName)
+		if len(stat.VehicleModel) > maxVehicleModel {
+			maxVehicleModel = len(stat.VehicleModel)
 		}
 		if len(stat.CarClass) > maxClassName {
 			maxClassName = len(stat.CarClass)
 		}
+		if len(stat.VehicleNumber) > maxVehicleNumber {
+			maxVehicleNumber = len(stat.VehicleNumber)
+		}
 	}
 
-	if maxDriverName > 25 {
-		maxDriverName = 25
+	if maxDriverName > 40 {
+		maxDriverName = 40
 	}
-	if maxVehicleName > 20 {
-		maxVehicleName = 20
+	if maxVehicleModel > 40 {
+		maxVehicleModel = 40
 	}
 	if maxClassName > 15 {
 		maxClassName = 15
 	}
+	if maxVehicleNumber > 4 {
+		maxVehicleNumber = 4
+	}
 
-	headerFormat := fmt.Sprintf("%%-%ds %%-%ds %%-%ds %%6s %%8s %%8s %%8s %%8s %%7s %%8s %%8s %%8s %%8s %%6s\n",
-		maxDriverName, maxClassName, maxVehicleName)
-	dataFormat := fmt.Sprintf("%%-%ds %%-%ds %%-%ds %%6.1f %%8s %%8s %%8s %%8s %%7.1f %%8s %%8s %%8s %%8s %%6.1f\n",
-		maxDriverName, maxClassName, maxVehicleName)
+	headerFormat := fmt.Sprintf("%%-%ds %%-%ds %%-%ds %%-%ds %%6s %%8s %%8s %%8s %%8s %%7s %%8s %%8s %%8s %%8s %%6s\n",
+		maxDriverName, maxClassName, maxVehicleNumber, maxVehicleModel)
+	dataFormat := fmt.Sprintf("%%-%ds %%-%ds %%%ds %%-%ds %%6.1f %%8s %%8s %%8s %%8s %%7.1f %%8s %%8s %%8s %%8s %%6.1f\n",
+		maxDriverName, maxClassName, maxVehicleNumber, maxVehicleModel)
 
 	var statsText strings.Builder
 
 	statsText.WriteString(fmt.Sprintf(headerFormat,
-		"Driver", "Class", "Vehicle", "MaxSpd", "BestLap", "BestS1", "BestS2", "BestS3", "MaxSpdC", "BestLapC", "BestS1C", "BestS2C", "BestS3C", "MaxSpdBC"))
-	totalWidth := maxDriverName + 1 + maxClassName + 1 + maxVehicleName + 1 + 6 + 1 + 8 + 1 + 8 + 1 + 8 + 1 + 8 + 1 + 7 + 1 + 8 + 1 + 8 + 1 + 8 + 1 + 8 + 1 + 6
+		"Driver", "Class", "No.", "Vehicle", "MaxSpd", "BestLap", "BestS1", "BestS2", "BestS3", "MaxSpdC", "BestLapC", "BestS1C", "BestS2C", "BestS3C", "MaxSpdBC"))
+	totalWidth := maxDriverName + 1 + maxClassName + 1 + maxVehicleNumber + 1 + maxVehicleModel + 1 + 6 + 1 + 8 + 1 + 8 + 1 + 8 + 1 + 8 + 1 + 7 + 1 + 8 + 1 + 8 + 1 + 8 + 1 + 8 + 1 + 6
 	statsText.WriteString(strings.Repeat("-", totalWidth) + "\n")
 
 	for _, stat := range statsList {
 		line := fmt.Sprintf(dataFormat,
 			truncate(stat.DriverName, maxDriverName),
 			truncate(stat.CarClass, maxClassName),
-			truncate(stat.VehicleName, maxVehicleName),
+			truncate(stat.VehicleNumber, maxVehicleNumber),
+			truncate(stat.VehicleModel, maxVehicleModel),
 			stat.MaxSpeed,
 			formatTime(stat.BestLapTime),
 			formatTime(stat.BestSector1),

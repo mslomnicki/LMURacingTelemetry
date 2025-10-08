@@ -68,6 +68,8 @@ type StandingsData struct {
 	UpgradePack        string     `json:"upgradePack"`
 	VehicleFilename    string     `json:"vehicleFilename"`
 	VehicleName        string     `json:"vehicleName"`
+	VehicleModel       string
+	VehicleNumber      string
 }
 
 // AttackMode represents attack mode status in Formula E or similar series
@@ -124,6 +126,7 @@ type DriverStats struct {
 	DriverName            string
 	VehicleName           string
 	VehicleModel          string
+	VehicleNumber         string
 	CarClass              string
 	SteamID               int64
 	MaxSpeed              float64

@@ -6,11 +6,13 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"strings"
 	"time"
 
 	"github.com/gorilla/websocket"
 	"github.com/mslomnicki/LMURacingTelemetry/pkg/logger"
 	"github.com/mslomnicki/LMURacingTelemetry/pkg/models"
+	"github.com/mslomnicki/LMURacingTelemetry/pkg/restclient"
 	"github.com/mslomnicki/LMURacingTelemetry/pkg/ui"
 )
 
@@ -28,29 +30,39 @@ type Monitor struct {
 	driverStats  map[string]*models.DriverStats
 	lapStates    map[string]*DriverLapState
 	session      *models.SessionData
-	websocketURL string
 	reconnecting bool
 	stopChan     chan struct{}
+	vehicles     map[string]restclient.VehicleInfo
+	host         string
+	wsPort       string
+	restPort     string
 }
 
-func NewMonitor(websocketURL string) *Monitor {
+func NewMonitor(host string, wsPort string, restPort string) *Monitor {
 	return &Monitor{
-		display:      ui.NewDisplay(),
-		drivers:      make(map[string]*models.StandingsData),
-		driverStats:  make(map[string]*models.DriverStats),
-		lapStates:    make(map[string]*DriverLapState),
-		websocketURL: websocketURL,
-		stopChan:     make(chan struct{}),
+		display:     ui.NewDisplay(),
+		drivers:     make(map[string]*models.StandingsData),
+		driverStats: make(map[string]*models.DriverStats),
+		lapStates:   make(map[string]*DriverLapState),
+		stopChan:    make(chan struct{}),
+		host:        host,
+		wsPort:      wsPort,
+		restPort:    restPort,
 	}
+}
+
+func (m *Monitor) websocketURL() string {
+	return fmt.Sprintf("ws://%s:%s/websocket/controlpanel", m.host, m.wsPort)
 }
 
 func (m *Monitor) Connect() error {
 	var err error
-	m.conn, _, err = websocket.DefaultDialer.Dial(m.websocketURL, nil)
+	url := m.websocketURL()
+	m.conn, _, err = websocket.DefaultDialer.Dial(url, nil)
 	if err != nil {
 		return fmt.Errorf("failed to connect to WebSocket: %w", err)
 	}
-	log.Printf("Connected to WebSocket: %s", m.websocketURL)
+	log.Printf("Connected to WebSocket: %s", url)
 	return nil
 }
 
@@ -98,7 +110,10 @@ func (m *Monitor) connectWithRetry() {
 		m.listenForMessages()
 
 		if m.conn != nil {
-			m.conn.Close()
+			err := m.conn.Close()
+			if err != nil {
+				log.Printf("Error closing WebSocket connection: %v", err)
+			}
 		}
 
 		select {
@@ -132,7 +147,10 @@ func (m *Monitor) Run() error {
 func (m *Monitor) listenForMessages() {
 	defer func() {
 		if m.conn != nil {
-			m.conn.Close()
+			err := m.conn.Close()
+			if err != nil {
+				log.Printf("Error closing WebSocket connection: %v", err)
+			}
 		}
 	}()
 
@@ -177,6 +195,18 @@ func (m *Monitor) handleMessage(msgType string, body json.RawMessage) {
 	}
 
 	m.updateDisplay()
+}
+
+func (m *Monitor) ensureVehiclesLoaded() error {
+	vehicles, err := restclient.GetAllVehicles(m.host, m.restPort)
+	if err != nil {
+		return err
+	}
+	m.vehicles = make(map[string]restclient.VehicleInfo)
+	for _, v := range vehicles {
+		m.vehicles[v.Id] = v
+	}
+	return nil
 }
 
 func (m *Monitor) handleStandings(body json.RawMessage) {
@@ -261,6 +291,33 @@ func (m *Monitor) updateDriverStats(driver *models.StandingsData) {
 			VehicleName: driver.VehicleName,
 			CarClass:    driver.CarClass,
 		}
+		found := false
+		if m.vehicles != nil {
+			if vinfo, ok := m.vehicles[driver.VehicleFilename]; ok {
+				parts := strings.Split(vinfo.FullPathTree, ", ")
+				if len(parts) >= 3 {
+					stats.VehicleModel = parts[2]
+				} else {
+					stats.VehicleModel = vinfo.FullPathTree
+				}
+				stats.VehicleNumber = vinfo.Number
+				found = true
+			}
+		}
+		if !found {
+			if err := m.ensureVehiclesLoaded(); err == nil {
+				if vinfo, ok := m.vehicles[driver.VehicleFilename]; ok {
+					parts := strings.Split(vinfo.FullPathTree, ", ")
+					if len(parts) >= 3 {
+						stats.VehicleModel = parts[2]
+					} else {
+						stats.VehicleModel = vinfo.FullPathTree
+					}
+					stats.VehicleNumber = vinfo.Number
+				}
+			}
+		}
+
 		m.driverStats[key] = stats
 	}
 
@@ -271,7 +328,8 @@ func (m *Monitor) updateDriverStats(driver *models.StandingsData) {
 	stats.LapsCompleted = driver.LapsCompleted
 	stats.LastUpdate = time.Now()
 	stats.SteamID = driver.SteamID
-	stats.VehicleModel = driver.VehicleName // lub inna logika, jeśli VehicleModel można wyliczyć
+	driver.VehicleModel = stats.VehicleModel
+	driver.VehicleNumber = stats.VehicleNumber
 
 	currentSpeed := driver.CarVelocity.Velocity * 3.6
 
@@ -332,6 +390,9 @@ func (m *Monitor) cleanup() {
 	}
 
 	if m.conn != nil {
-		m.conn.Close()
+		err := m.conn.Close()
+		if err != nil {
+			log.Printf("Error closing WebSocket connection: %v", err)
+		}
 	}
 }

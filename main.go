@@ -18,15 +18,14 @@ func main() {
 	log.SetOutput(logFile)
 
 	host := flag.String("host", "localhost", "WebSocket server hostname or IP address")
-	port := flag.String("port", "6398", "WebSocket server port")
+	wsPort := flag.String("ws-port", "6398", "WebSocket server port")
+	restPort := flag.String("rest-port", "6397", "REST API server port")
 	flag.Parse()
 
-	websocketURL := fmt.Sprintf("ws://%s:%s/websocket/controlpanel", *host, *port)
-
-	monitor := telemetry.NewMonitor(websocketURL)
+	monitor := telemetry.NewMonitor(*host, *wsPort, *restPort)
 
 	fmt.Printf("Starting LMU Racing Telemetry Monitor %s...\n", ui.Version)
-	fmt.Printf("Connecting to %s\n", websocketURL)
+	fmt.Printf("Connecting to ws://%s:%s and REST http://%s:%s\n", *host, *wsPort, *host, *restPort)
 	fmt.Printf("Press Ctrl+C to exit\n\n")
 
 	if err := monitor.Run(); err != nil {
