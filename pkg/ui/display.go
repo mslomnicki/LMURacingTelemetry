@@ -46,7 +46,7 @@ func (d *Display) Setup() {
 	// Create a grid layout with 4 rows and 2 columns for bottom row
 	grid := tview.NewGrid().
 		SetRows(4, 0, 0).
-		SetColumns(0, 60).
+		// SetColumns(0, 80).
 		SetBorders(true)
 
 	// Add components to grid
@@ -142,22 +142,21 @@ func (d *Display) UpdateDrivers(drivers map[string]*models.StandingsData) {
 		maxStatus = 20
 	}
 
-	// Create format strings with dynamic widths
-	headerFormat := fmt.Sprintf("%%-%ds %%-%ds %%-%ds %%-%ds %%-%ds %%-%ds %%-%ds %%-%ds %%-%ds\n",
-		3, maxDriverName, maxVehicleName, 4, 8, 8, 6, 5, maxStatus)
-	dataFormat := fmt.Sprintf("%%-%dd %%-%ds %%-%ds %%-%dd %%-%ds %%-%ds %%-%d.0f %%-%d.1f %%-%ds\n",
-		3, maxDriverName, maxVehicleName, 4, 8, 8, 6, 5, maxStatus)
+	// Create format strings with dynamic widths (bez kolumny Fuel)
+	headerFormat := fmt.Sprintf("%%-%ds %%-%ds %%-%ds %%-%ds %%-%ds %%-%ds %%-%ds %%-%ds\n",
+		3, maxDriverName, maxVehicleName, 4, 8, 8, 6, maxStatus)
+	dataFormat := fmt.Sprintf("%%-%dd %%-%ds %%-%ds %%-%dd %%-%ds %%-%ds %%-%d.0f %%-%ds\n",
+		3, maxDriverName, maxVehicleName, 4, 8, 8, 6, maxStatus)
 
 	var driversText strings.Builder
 
-	// Header
+	// Header (bez Fuel)
 	driversText.WriteString(fmt.Sprintf(headerFormat,
-		"Pos", "Driver", "Vehicle", "Laps", "CurLap", "BestLap", "Speed", "Fuel", "Status"))
-
-	totalWidth := 3 + 1 + maxDriverName + 1 + maxVehicleName + 1 + 4 + 1 + 8 + 1 + 8 + 1 + 6 + 1 + 5 + 1 + maxStatus
+		"Pos", "Driver", "Vehicle", "Laps", "CurLap", "BestLap", "Speed", "Status"))
+	totalWidth := 3 + 1 + maxDriverName + 1 + maxVehicleName + 1 + 4 + 1 + 8 + 1 + 8 + 1 + 6 + 1 + maxStatus
 	driversText.WriteString(strings.Repeat("-", totalWidth) + "\n")
 
-	// Driver data
+	// Driver data (bez przekazywania poziomu paliwa)
 	for _, driver := range driverList {
 		status := driver.PitState
 		if driver.Flag != "" && driver.Flag != "green" {
@@ -172,7 +171,6 @@ func (d *Display) UpdateDrivers(drivers map[string]*models.StandingsData) {
 			formatTime(driver.TimeIntoLap),
 			formatTime(driver.BestLapTime),
 			driver.CarVelocity.Velocity*3.6,
-			driver.FuelFraction*100,
 			truncate(status, maxStatus),
 		)
 		driversText.WriteString(line)
@@ -235,57 +233,71 @@ func (d *Display) UpdateStats(stats map[string]*models.DriverStats) {
 		maxClassName = 15
 	}
 
-	// Create format strings with dynamic widths
+	// Create format strings with dynamic widths (bez kolumny Fuel)
 	headerFormat := fmt.Sprintf("%%-%ds %%-%ds %%-%ds %%-%ds %%-%ds %%-%ds %%-%ds %%-%ds %%-%ds %%-%ds %%-%ds %%-%ds %%-%ds %%-%ds\n",
-		maxDriverName, maxVehicleName, maxClassName, 6, 8, 8, 8, 8, 6, 8, 8, 8, 8, 6)
-	dataFormat := fmt.Sprintf("%%-%ds %%-%ds %%-%ds %%-%d.0f %%-%ds %%-%ds %%-%ds %%-%ds %%-%d.0f %%-%ds %%-%ds %%-%ds %%-%ds %%-%d.0f\n",
-		maxDriverName, maxVehicleName, maxClassName, 6, 8, 8, 8, 8, 6, 8, 8, 8, 8, 6)
+		maxDriverName, maxVehicleName, maxClassName, 6, 8, 8, 8, 8, 7, 8, 8, 8, 8, 6)
+	dataFormat := fmt.Sprintf("%%-%ds %%-%ds %%-%ds %%-%ds %%-%ds %%-%ds %%-%ds %%-%ds %%-%ds %%-%ds %%-%ds %%-%ds %%-%ds %%-%ds\n",
+		maxDriverName, maxVehicleName, maxClassName, 6, 8, 8, 8, 8, 7, 8, 8, 8, 8, 6)
 
 	var statsText strings.Builder
 
-	// Header
+	// Header (bez Fuel)
 	statsText.WriteString(fmt.Sprintf(headerFormat,
 		"Driver", "Vehicle", "Class", "MaxSpd", "BestLap", "BestS1", "BestS2", "BestS3", "MaxSpdC", "BestLapC", "BestS1C", "BestS2C", "BestS3C", "MaxSpdBC"))
-	totalWidth := maxDriverName + 1 + maxVehicleName + 1 + maxClassName + 1 + 6 + 1 + 8 + 1 + 8 + 1 + 8 + 1 + 8 + 1 + 6 + 1 + 8 + 1 + 8 + 1 + 8 + 1 + 8 + 1 + 6
+	totalWidth := maxDriverName + 1 + maxVehicleName + 1 + maxClassName + 1 + 6 + 1 + 8 + 1 + 8 + 1 + 8 + 1 + 8 + 1 + 7 + 1 + 8 + 1 + 8 + 1 + 8 + 1 + 8 + 1 + 6
 	statsText.WriteString(strings.Repeat("-", totalWidth) + "\n")
 
-	// Stats data
+	// Stats data (bez przekazywania poziomu paliwa)
 	for _, stat := range statsList {
-		// Porównania i kolorowanie calculated
-		maxSpdC := fmt.Sprintf("%.1f", stat.MaxSpeedOnBestLapCalc)
+		maxSpd := padColorString(fmt.Sprintf("%.1f", stat.MaxSpeed), 6)
+		bestLap := padColorString(formatTime(stat.BestLapTime), 8)
+		bestS1 := padColorString(formatTime(stat.BestSector1), 8)
+		bestS2 := padColorString(formatTime(stat.BestSector2), 8)
+		bestS3 := padColorString(formatTime(stat.BestSector3), 8)
+		maxSpdC := padColorString(fmt.Sprintf("%.1f", stat.MaxSpeedOnBestLapCalc), 7)
 		if floatDiffers(stat.MaxSpeedOnBestLap, stat.MaxSpeedOnBestLapCalc) {
-			maxSpdC = "[red]" + maxSpdC + "[-]"
+			maxSpdC = padColorString("[red]"+fmt.Sprintf("%.1f", stat.MaxSpeedOnBestLapCalc)+"[-]", 7)
 		}
 		bestLapC := formatTime(stat.BestLapTimeCalculated)
 		if floatDiffers(stat.BestLapTime, stat.BestLapTimeCalculated) {
-			bestLapC = "[red]" + bestLapC + "[-]"
+			bestLapC = padColorString("[red]"+bestLapC+"[-]", 8)
+		} else {
+			bestLapC = padColorString(bestLapC, 8)
 		}
 		bestS1C := formatTime(stat.BestSector1Calculated)
 		if floatDiffers(stat.BestSector1, stat.BestSector1Calculated) {
-			bestS1C = "[red]" + bestS1C + "[-]"
+			bestS1C = padColorString("[red]"+bestS1C+"[-]", 8)
+		} else {
+			bestS1C = padColorString(bestS1C, 8)
 		}
 		bestS2C := formatTime(stat.BestSector2Calculated)
 		if floatDiffers(stat.BestSector2, stat.BestSector2Calculated) {
-			bestS2C = "[red]" + bestS2C + "[-]"
+			bestS2C = padColorString("[red]"+bestS2C+"[-]", 8)
+		} else {
+			bestS2C = padColorString(bestS2C, 8)
 		}
 		bestS3C := formatTime(stat.BestSector3Calculated)
 		if floatDiffers(stat.BestSector3, stat.BestSector3Calculated) {
-			bestS3C = "[red]" + bestS3C + "[-]"
+			bestS3C = padColorString("[red]"+bestS3C+"[-]", 8)
+		} else {
+			bestS3C = padColorString(bestS3C, 8)
 		}
 		maxSpdBC := fmt.Sprintf("%.1f", stat.MaxSpeedOnBestLapCalc)
 		if floatDiffers(stat.MaxSpeedOnBestLap, stat.MaxSpeedOnBestLapCalc) {
-			maxSpdBC = "[red]" + maxSpdBC + "[-]"
+			maxSpdBC = padColorString("[red]"+maxSpdBC+"[-]", 6)
+		} else {
+			maxSpdBC = padColorString(maxSpdBC, 6)
 		}
 
 		line := fmt.Sprintf(dataFormat,
-			truncate(stat.DriverName, maxDriverName),
-			truncate(stat.VehicleName, maxVehicleName),
-			truncate(stat.CarClass, maxClassName),
-			stat.MaxSpeed,
-			formatTime(stat.BestLapTime),
-			formatTime(stat.BestSector1),
-			formatTime(stat.BestSector2),
-			formatTime(stat.BestSector3),
+			padColorString(truncate(stat.DriverName, maxDriverName), maxDriverName),
+			padColorString(truncate(stat.VehicleName, maxVehicleName), maxVehicleName),
+			padColorString(truncate(stat.CarClass, maxClassName), maxClassName),
+			maxSpd,
+			bestLap,
+			bestS1,
+			bestS2,
+			bestS3,
 			maxSpdC,
 			bestLapC,
 			bestS1C,
@@ -333,4 +345,33 @@ func floatDiffers(a, b float64) bool {
 		return false
 	}
 	return (a > b && a-b > eps) || (b > a && b-a > eps)
+}
+
+// padColorString przycina lub dopełnia string z kodami kolorów tview do zadanej szerokości (licząc tylko widoczne znaki)
+func padColorString(s string, width int) string {
+	visible := 0
+	result := ""
+	inTag := false
+	for i := 0; i < len(s); i++ {
+		if s[i] == '[' {
+			inTag = true
+		}
+		if !inTag {
+			if visible < width {
+				result += string(s[i])
+				visible++
+			}
+		} else {
+			result += string(s[i])
+		}
+		if s[i] == ']' {
+			inTag = false
+		}
+	}
+	// Dodaj spacje jeśli za mało
+	for visible < width {
+		result += " "
+		visible++
+	}
+	return result
 }
