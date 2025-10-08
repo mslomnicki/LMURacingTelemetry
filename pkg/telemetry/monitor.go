@@ -15,8 +15,9 @@ import (
 )
 
 type DriverLapState struct {
-	currentLapMaxSpeed float64
-	lastCompletedLaps  int
+	currentLapMaxSpeed   float64
+	lastCompletedLaps    int
+	lastValidTimeIntoLap float64
 }
 
 type Monitor struct {
@@ -217,16 +218,23 @@ func (m *Monitor) handleSessionInfo(body json.RawMessage) {
 func (m *Monitor) updateDriverStats(driver *models.StandingsData) {
 	key := driver.DriverName
 
+	lapState, lapStateExists := m.lapStates[key]
+	if !lapStateExists {
+		lapState = &DriverLapState{
+			lastCompletedLaps: driver.LapsCompleted,
+		}
+		m.lapStates[key] = lapState
+	}
+
 	const maxReasonableTimeIntoLap = 600.0 // 10 minutes in seconds
 	if driver.TimeIntoLap < 0 || driver.TimeIntoLap > maxReasonableTimeIntoLap {
-		filteredDriver := *driver
-		if stats, exists := m.driverStats[key]; exists && stats.LastValidTimeIntoLap >= 0 {
-			filteredDriver.TimeIntoLap = stats.LastValidTimeIntoLap
+		if lapState.lastValidTimeIntoLap >= 0 {
+			driver.TimeIntoLap = lapState.lastValidTimeIntoLap
 		} else {
-			filteredDriver.TimeIntoLap = 0
+			driver.TimeIntoLap = 0
 		}
-		driver = &filteredDriver
 	}
+	lapState.lastValidTimeIntoLap = driver.TimeIntoLap
 
 	stats, exists := m.driverStats[key]
 	if !exists {
@@ -238,24 +246,12 @@ func (m *Monitor) updateDriverStats(driver *models.StandingsData) {
 		m.driverStats[key] = stats
 	}
 
-	lapState, lapStateExists := m.lapStates[key]
-	if !lapStateExists {
-		lapState = &DriverLapState{
-			lastCompletedLaps: driver.LapsCompleted,
-		}
-		m.lapStates[key] = lapState
-	}
-
 	stats.DriverName = driver.DriverName
 	stats.VehicleName = driver.VehicleName
 	stats.CarClass = driver.CarClass
 	stats.Position = driver.Position
 	stats.LapsCompleted = driver.LapsCompleted
 	stats.LastUpdate = time.Now()
-
-	if driver.TimeIntoLap >= 0 && driver.TimeIntoLap <= maxReasonableTimeIntoLap {
-		stats.LastValidTimeIntoLap = driver.TimeIntoLap
-	}
 
 	currentSpeed := driver.CarVelocity.Velocity * 3.6 // Convert to km/h
 

@@ -138,5 +138,4 @@ type DriverStats struct {
 	Position              int
 	LapsCompleted         int
 	LastUpdate            time.Time
-	LastValidTimeIntoLap  float64
 }
