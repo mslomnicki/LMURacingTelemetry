@@ -26,7 +26,7 @@ type Monitor struct {
 	csvLogger    *logger.CSVLogger
 	drivers      map[string]*models.StandingsData
 	driverStats  map[string]*models.DriverStats
-	lapStates    map[string]*DriverLapState // Dodatkowy stan dla każdego kierowcy
+	lapStates    map[string]*DriverLapState
 	session      *models.SessionData
 	websocketURL string
 	reconnecting bool
@@ -172,7 +172,6 @@ func (m *Monitor) handleMessage(msgType string, body json.RawMessage) {
 	case "sessionInfo":
 		m.handleSessionInfo(body)
 	case "standingsHistory":
-		// Currently not processed
 	default:
 		log.Printf("Unsupported message type: %s, body: %s", msgType, string(body))
 	}
@@ -202,6 +201,25 @@ func (m *Monitor) handleSessionInfo(body json.RawMessage) {
 		return
 	}
 
+	sessionChanged := false
+	if m.session == nil || m.session.TrackName != session.TrackName || m.session.Session != session.Session {
+		sessionChanged = true
+	}
+
+	if sessionChanged {
+		if m.csvLogger != nil {
+			if err := m.csvLogger.Close(); err != nil {
+				log.Printf("Error closing previous CSV logger: %v", err)
+			}
+			m.csvLogger = nil
+			log.Println("Previous CSV logger closed due to session change")
+		}
+		m.drivers = make(map[string]*models.StandingsData)
+		m.driverStats = make(map[string]*models.DriverStats)
+		m.lapStates = make(map[string]*DriverLapState)
+		log.Println("All driver data and stats reset due to session change")
+	}
+
 	m.session = &session
 
 	if m.csvLogger == nil && m.session != nil {
@@ -226,7 +244,7 @@ func (m *Monitor) updateDriverStats(driver *models.StandingsData) {
 		m.lapStates[key] = lapState
 	}
 
-	const maxReasonableTimeIntoLap = 600.0 // 10 minutes in seconds
+	const maxReasonableTimeIntoLap = 600.0
 	if driver.TimeIntoLap < 0 || driver.TimeIntoLap > maxReasonableTimeIntoLap {
 		if lapState.lastValidTimeIntoLap >= 0 {
 			driver.TimeIntoLap = lapState.lastValidTimeIntoLap
@@ -253,7 +271,7 @@ func (m *Monitor) updateDriverStats(driver *models.StandingsData) {
 	stats.LapsCompleted = driver.LapsCompleted
 	stats.LastUpdate = time.Now()
 
-	currentSpeed := driver.CarVelocity.Velocity * 3.6 // Convert to km/h
+	currentSpeed := driver.CarVelocity.Velocity * 3.6
 
 	if currentSpeed > stats.MaxSpeed {
 		stats.MaxSpeed = currentSpeed
@@ -277,25 +295,22 @@ func (m *Monitor) updateDriverStats(driver *models.StandingsData) {
 	}
 
 	stats.BestLapTime = driver.BestLapTime
-	stats.BestSector1 = driver.BestSectorTime1
-	stats.BestSector2 = driver.BestSectorTime2 - driver.BestSectorTime1
-	stats.BestSector3 = driver.BestLapTime - driver.BestSectorTime2
+	stats.BestSector1 = driver.BestLapSectorTime1
+	stats.BestSector2 = driver.BestLapSectorTime2 - driver.BestLapSectorTime1
+	stats.BestSector3 = driver.BestLapTime - driver.BestLapSectorTime2
 }
 
-// logDriverData updates driver data in CSV logger (most recent state only)
 func (m *Monitor) logDriverData(driver *models.StandingsData) {
 	if m.csvLogger == nil {
 		return
 	}
 
-	// Get stats for this driver
 	key := driver.DriverName
 	if stats, exists := m.driverStats[key]; exists {
 		m.csvLogger.UpdateDriver(driver, stats)
 	}
 }
 
-// updateDisplay refreshes all UI components
 func (m *Monitor) updateDisplay() {
 	m.display.UpdateSession(m.session)
 	m.display.UpdateDrivers(m.drivers)
@@ -303,7 +318,6 @@ func (m *Monitor) updateDisplay() {
 	m.display.Draw()
 }
 
-// cleanup performs cleanup operations on shutdown
 func (m *Monitor) cleanup() {
 	log.Println("Shutting down...")
 
