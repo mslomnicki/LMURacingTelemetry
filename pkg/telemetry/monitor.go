@@ -270,6 +270,8 @@ func (m *Monitor) updateDriverStats(driver *models.StandingsData) {
 	stats.Position = driver.Position
 	stats.LapsCompleted = driver.LapsCompleted
 	stats.LastUpdate = time.Now()
+	stats.SteamID = driver.SteamID
+	stats.VehicleModel = driver.VehicleName // lub inna logika, jeśli VehicleModel można wyliczyć
 
 	currentSpeed := driver.CarVelocity.Velocity * 3.6
 
@@ -307,7 +309,7 @@ func (m *Monitor) logDriverData(driver *models.StandingsData) {
 
 	key := driver.DriverName
 	if stats, exists := m.driverStats[key]; exists {
-		m.csvLogger.UpdateDriver(driver, stats)
+		m.csvLogger.UpdateDriver(stats)
 	}
 }
 

@@ -11,21 +11,17 @@ import (
 	"github.com/mslomnicki/LMURacingTelemetry/pkg/models"
 )
 
-// CSVLogger handles CSV file logging for telemetry data
 type CSVLogger struct {
 	filename    string
-	driverData  map[string]*models.StandingsData
 	driverStats map[string]*models.DriverStats
 	session     *models.SessionData
 }
 
-// NewCSVLogger creates a new CSV logger with filename based on session data
 func NewCSVLogger(session *models.SessionData) (*CSVLogger, error) {
 	if session == nil {
 		return nil, fmt.Errorf("session data is required")
 	}
 
-	// Create filename with date, track, and session
 	now := time.Now()
 	trackName := strings.ReplaceAll(session.TrackName, " ", "_")
 	sessionName := strings.ReplaceAll(session.Session, " ", "_")
@@ -36,27 +32,19 @@ func NewCSVLogger(session *models.SessionData) (*CSVLogger, error) {
 
 	return &CSVLogger{
 		filename:    filename,
-		driverData:  make(map[string]*models.StandingsData),
 		driverStats: make(map[string]*models.DriverStats),
 		session:     session,
 	}, nil
 }
 
-// UpdateDriver updates the driver data (replacing previous data for this driver)
-func (l *CSVLogger) UpdateDriver(driver *models.StandingsData, stats *models.DriverStats) {
-	// Use DriverName as key instead of SlotID for consistency
-	key := driver.DriverName
-	l.driverData[key] = driver
+func (l *CSVLogger) UpdateDriver(stats *models.DriverStats) {
+	key := stats.DriverName
 	l.driverStats[key] = stats
-
-	// Write current state to CSV file immediately
 	if err := l.WriteCurrentState(); err != nil {
-		// Log error but don't stop the program
 		fmt.Printf("Error writing CSV file: %v\n", err)
 	}
 }
 
-// WriteCurrentState writes the current state of all drivers to CSV file
 func (l *CSVLogger) WriteCurrentState() error {
 	file, err := os.Create(l.filename)
 	if err != nil {
@@ -65,52 +53,49 @@ func (l *CSVLogger) WriteCurrentState() error {
 	defer file.Close()
 
 	writer := csv.NewWriter(file)
-	writer.Comma = ';' // Set delimiter to semicolon
+	writer.Comma = ';'
 	defer writer.Flush()
 
-	// Write CSV header
 	header := []string{
-		"SteamID", "DriverName", "VehicleName", "CarClass",
+		"Position",
+		"SteamID", "DriverName", "CarClass", "VehicleModel", "VehicleName",
 		"LapsCompleted", "MaxSpeed", "BestLapTime",
 		"BestSector1", "BestSector2", "BestSector3",
+		"MaxSpeedOnBestLap", "BestLapTimeCalculated", "BestSector1Calculated", "BestSector2Calculated", "BestSector3Calculated", "MaxSpeedOnBestLapCalc",
 	}
 	if err := writer.Write(header); err != nil {
 		return fmt.Errorf("failed to write CSV header: %w", err)
 	}
 
-	// Sort drivers by position
-	type driverPair struct {
-		driver *models.StandingsData
-		stats  *models.DriverStats
-	}
-
-	var drivers []driverPair
-	for key, driver := range l.driverData {
-		if stats, exists := l.driverStats[key]; exists {
-			drivers = append(drivers, driverPair{driver, stats})
-		}
+	var drivers []*models.DriverStats
+	for _, stats := range l.driverStats {
+		drivers = append(drivers, stats)
 	}
 
 	sort.Slice(drivers, func(i, j int) bool {
-		return drivers[i].driver.Position < drivers[j].driver.Position
+		return drivers[i].Position < drivers[j].Position
 	})
 
-	// Write driver data
-	for _, pair := range drivers {
-		driver := pair.driver
-		stats := pair.stats
-
+	for _, stats := range drivers {
 		record := []string{
-			fmt.Sprintf("%d", driver.SteamID),
-			driver.DriverName,
-			driver.VehicleName,
-			driver.CarClass,
-			fmt.Sprintf("%d", driver.LapsCompleted),
+			fmt.Sprintf("%d", stats.Position),
+			fmt.Sprintf("%d", stats.SteamID),
+			stats.DriverName,
+			stats.CarClass,
+			stats.VehicleModel,
+			stats.VehicleName,
+			fmt.Sprintf("%d", stats.LapsCompleted),
 			fmt.Sprintf("%.1f", stats.MaxSpeed),
-			formatTime(driver.BestLapTime),
+			formatTime(stats.BestLapTime),
 			formatTime(stats.BestSector1),
 			formatTime(stats.BestSector2),
 			formatTime(stats.BestSector3),
+			fmt.Sprintf("%.1f", stats.MaxSpeedOnBestLap),
+			formatTime(stats.BestLapTimeCalculated),
+			formatTime(stats.BestSector1Calculated),
+			formatTime(stats.BestSector2Calculated),
+			formatTime(stats.BestSector3Calculated),
+			fmt.Sprintf("%.1f", stats.MaxSpeedOnBestLapCalc),
 		}
 
 		if err := writer.Write(record); err != nil {
@@ -121,12 +106,10 @@ func (l *CSVLogger) WriteCurrentState() error {
 	return nil
 }
 
-// Close performs final write and cleanup
 func (l *CSVLogger) Close() error {
 	return l.WriteCurrentState()
 }
 
-// formatTime converts seconds to MM:SS.sss format
 func formatTime(seconds float64) string {
 	if seconds <= 0 {
 		return "N/A"

@@ -123,7 +123,9 @@ type SessionData struct {
 type DriverStats struct {
 	DriverName            string
 	VehicleName           string
+	VehicleModel          string
 	CarClass              string
+	SteamID               int64
 	MaxSpeed              float64
 	BestLapTime           float64
 	BestSector1           float64
