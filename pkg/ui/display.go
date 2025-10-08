@@ -236,22 +236,47 @@ func (d *Display) UpdateStats(stats map[string]*models.DriverStats) {
 	}
 
 	// Create format strings with dynamic widths
-	headerFormat := fmt.Sprintf("%%-%ds %%-%ds %%-%ds %%-%ds %%-%ds %%-%ds %%-%ds %%-%ds\n",
-		maxDriverName, maxVehicleName, maxClassName, 6, 8, 8, 8, 8)
-	dataFormat := fmt.Sprintf("%%-%ds %%-%ds %%-%ds %%-%d.0f %%-%ds %%-%ds %%-%ds %%-%ds\n",
-		maxDriverName, maxVehicleName, maxClassName, 6, 8, 8, 8, 8)
+	headerFormat := fmt.Sprintf("%%-%ds %%-%ds %%-%ds %%-%ds %%-%ds %%-%ds %%-%ds %%-%ds %%-%ds %%-%ds %%-%ds %%-%ds %%-%ds %%-%ds\n",
+		maxDriverName, maxVehicleName, maxClassName, 6, 8, 8, 8, 8, 6, 8, 8, 8, 8, 6)
+	dataFormat := fmt.Sprintf("%%-%ds %%-%ds %%-%ds %%-%d.0f %%-%ds %%-%ds %%-%ds %%-%ds %%-%d.0f %%-%ds %%-%ds %%-%ds %%-%ds %%-%d.0f\n",
+		maxDriverName, maxVehicleName, maxClassName, 6, 8, 8, 8, 8, 6, 8, 8, 8, 8, 6)
 
 	var statsText strings.Builder
 
 	// Header
 	statsText.WriteString(fmt.Sprintf(headerFormat,
-		"Driver", "Vehicle", "Class", "MaxSpd", "BestLap", "BestS1", "BestS2", "BestS3"))
-
-	totalWidth := maxDriverName + 1 + maxVehicleName + 1 + maxClassName + 1 + 6 + 1 + 8 + 1 + 8 + 1 + 8 + 1 + 8
+		"Driver", "Vehicle", "Class", "MaxSpd", "BestLap", "BestS1", "BestS2", "BestS3", "MaxSpdC", "BestLapC", "BestS1C", "BestS2C", "BestS3C", "MaxSpdBC"))
+	totalWidth := maxDriverName + 1 + maxVehicleName + 1 + maxClassName + 1 + 6 + 1 + 8 + 1 + 8 + 1 + 8 + 1 + 8 + 1 + 6 + 1 + 8 + 1 + 8 + 1 + 8 + 1 + 8 + 1 + 6
 	statsText.WriteString(strings.Repeat("-", totalWidth) + "\n")
 
 	// Stats data
 	for _, stat := range statsList {
+		// Porównania i kolorowanie calculated
+		maxSpdC := fmt.Sprintf("%.1f", stat.MaxSpeedOnBestLapCalc)
+		if floatDiffers(stat.MaxSpeedOnBestLap, stat.MaxSpeedOnBestLapCalc) {
+			maxSpdC = "[red]" + maxSpdC + "[-]"
+		}
+		bestLapC := formatTime(stat.BestLapTimeCalculated)
+		if floatDiffers(stat.BestLapTime, stat.BestLapTimeCalculated) {
+			bestLapC = "[red]" + bestLapC + "[-]"
+		}
+		bestS1C := formatTime(stat.BestSector1Calculated)
+		if floatDiffers(stat.BestSector1, stat.BestSector1Calculated) {
+			bestS1C = "[red]" + bestS1C + "[-]"
+		}
+		bestS2C := formatTime(stat.BestSector2Calculated)
+		if floatDiffers(stat.BestSector2, stat.BestSector2Calculated) {
+			bestS2C = "[red]" + bestS2C + "[-]"
+		}
+		bestS3C := formatTime(stat.BestSector3Calculated)
+		if floatDiffers(stat.BestSector3, stat.BestSector3Calculated) {
+			bestS3C = "[red]" + bestS3C + "[-]"
+		}
+		maxSpdBC := fmt.Sprintf("%.1f", stat.MaxSpeedOnBestLapCalc)
+		if floatDiffers(stat.MaxSpeedOnBestLap, stat.MaxSpeedOnBestLapCalc) {
+			maxSpdBC = "[red]" + maxSpdBC + "[-]"
+		}
+
 		line := fmt.Sprintf(dataFormat,
 			truncate(stat.DriverName, maxDriverName),
 			truncate(stat.VehicleName, maxVehicleName),
@@ -261,6 +286,12 @@ func (d *Display) UpdateStats(stats map[string]*models.DriverStats) {
 			formatTime(stat.BestSector1),
 			formatTime(stat.BestSector2),
 			formatTime(stat.BestSector3),
+			maxSpdC,
+			bestLapC,
+			bestS1C,
+			bestS2C,
+			bestS3C,
+			maxSpdBC,
 		)
 		statsText.WriteString(line)
 	}
@@ -268,22 +299,18 @@ func (d *Display) UpdateStats(stats map[string]*models.DriverStats) {
 	d.statsBox.SetText(statsText.String())
 }
 
-// Draw refreshes the display
 func (d *Display) Draw() {
 	d.app.Draw()
 }
 
-// Run starts the UI application
 func (d *Display) Run() error {
 	return d.app.Run()
 }
 
-// Stop stops the UI application
 func (d *Display) Stop() {
 	d.app.Stop()
 }
 
-// truncate shortens strings to fit display columns
 func truncate(s string, length int) string {
 	if len(s) <= length {
 		return s
@@ -291,7 +318,6 @@ func truncate(s string, length int) string {
 	return s[:length-3] + "..."
 }
 
-// formatTime converts seconds to MM:SS.sss format
 func formatTime(seconds float64) string {
 	if seconds <= 0 {
 		return "N/A"
@@ -299,4 +325,12 @@ func formatTime(seconds float64) string {
 	minutes := int(seconds) / 60
 	secs := seconds - float64(minutes*60)
 	return fmt.Sprintf("%d:%06.3f", minutes, secs)
+}
+
+func floatDiffers(a, b float64) bool {
+	const eps = 0.001
+	if a == 0 && b == 0 {
+		return false
+	}
+	return (a > b && a-b > eps) || (b > a && b-a > eps)
 }

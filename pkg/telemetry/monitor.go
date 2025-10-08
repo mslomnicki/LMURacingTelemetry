@@ -14,31 +14,35 @@ import (
 	"github.com/mslomnicki/LMURacingTelemetry/pkg/ui"
 )
 
-// Monitor represents the main telemetry monitoring system
+type DriverLapState struct {
+	currentLapMaxSpeed float64
+	lastCompletedLaps  int
+}
+
 type Monitor struct {
 	conn         *websocket.Conn
 	display      *ui.Display
 	csvLogger    *logger.CSVLogger
 	drivers      map[string]*models.StandingsData
 	driverStats  map[string]*models.DriverStats
+	lapStates    map[string]*DriverLapState // Dodatkowy stan dla każdego kierowcy
 	session      *models.SessionData
 	websocketURL string
 	reconnecting bool
 	stopChan     chan struct{}
 }
 
-// NewMonitor creates a new telemetry monitor
 func NewMonitor(websocketURL string) *Monitor {
 	return &Monitor{
 		display:      ui.NewDisplay(),
 		drivers:      make(map[string]*models.StandingsData),
 		driverStats:  make(map[string]*models.DriverStats),
+		lapStates:    make(map[string]*DriverLapState),
 		websocketURL: websocketURL,
 		stopChan:     make(chan struct{}),
 	}
 }
 
-// Connect establishes WebSocket connection to the racing simulator
 func (m *Monitor) Connect() error {
 	var err error
 	m.conn, _, err = websocket.DefaultDialer.Dial(m.websocketURL, nil)
@@ -49,7 +53,6 @@ func (m *Monitor) Connect() error {
 	return nil
 }
 
-// connectWithRetry attempts to connect with automatic retry
 func (m *Monitor) connectWithRetry() {
 	backoff := time.Second
 	maxBackoff := 30 * time.Second
@@ -91,10 +94,8 @@ func (m *Monitor) connectWithRetry() {
 			m.reconnecting = false
 		}
 
-		// Start listening for messages
 		m.listenForMessages()
 
-		// If we reach here, connection was lost
 		if m.conn != nil {
 			m.conn.Close()
 		}
@@ -104,20 +105,16 @@ func (m *Monitor) connectWithRetry() {
 			return
 		default:
 			m.reconnecting = true
-			backoff = time.Second // Reset backoff on disconnect
+			backoff = time.Second
 		}
 	}
 }
 
-// Run starts the telemetry monitoring system
 func (m *Monitor) Run() error {
-	// Setup UI
 	m.display.Setup()
 
-	// Start WebSocket connection with auto-reconnect in a goroutine
 	go m.connectWithRetry()
 
-	// Handle interrupts
 	interrupt := make(chan os.Signal, 1)
 	signal.Notify(interrupt, os.Interrupt)
 
@@ -128,11 +125,9 @@ func (m *Monitor) Run() error {
 		m.display.Stop()
 	}()
 
-	// Run the application
 	return m.display.Run()
 }
 
-// listenForMessages continuously reads and processes WebSocket messages
 func (m *Monitor) listenForMessages() {
 	defer func() {
 		if m.conn != nil {
@@ -159,7 +154,6 @@ func (m *Monitor) listenForMessages() {
 			continue
 		}
 
-		// Convert body to json.RawMessage for handling
 		bodyBytes, err := json.Marshal(wsMsg.Body)
 		if err != nil {
 			log.Printf("Error marshaling message body: %v", err)
@@ -170,7 +164,6 @@ func (m *Monitor) listenForMessages() {
 	}
 }
 
-// handleMessage processes different types of WebSocket messages
 func (m *Monitor) handleMessage(msgType string, body json.RawMessage) {
 	switch msgType {
 	case "standings":
@@ -186,7 +179,6 @@ func (m *Monitor) handleMessage(msgType string, body json.RawMessage) {
 	m.updateDisplay()
 }
 
-// handleStandings processes driver standings data
 func (m *Monitor) handleStandings(body json.RawMessage) {
 	var standings []models.StandingsData
 	if err := json.Unmarshal(body, &standings); err != nil {
@@ -194,7 +186,6 @@ func (m *Monitor) handleStandings(body json.RawMessage) {
 		return
 	}
 
-	// Update all drivers
 	for _, driver := range standings {
 		key := driver.DriverName
 		m.drivers[key] = &driver
@@ -203,7 +194,6 @@ func (m *Monitor) handleStandings(body json.RawMessage) {
 	}
 }
 
-// handleSessionInfo processes session information
 func (m *Monitor) handleSessionInfo(body json.RawMessage) {
 	var session models.SessionData
 	if err := json.Unmarshal(body, &session); err != nil {
@@ -213,7 +203,6 @@ func (m *Monitor) handleSessionInfo(body json.RawMessage) {
 
 	m.session = &session
 
-	// Initialize CSV logger if not already done
 	if m.csvLogger == nil && m.session != nil {
 		var err error
 		m.csvLogger, err = logger.NewCSVLogger(m.session)
@@ -225,7 +214,6 @@ func (m *Monitor) handleSessionInfo(body json.RawMessage) {
 	}
 }
 
-// updateDriverStats maintains historical statistics for each driver
 func (m *Monitor) updateDriverStats(driver *models.StandingsData) {
 	key := driver.DriverName
 
@@ -250,7 +238,14 @@ func (m *Monitor) updateDriverStats(driver *models.StandingsData) {
 		m.driverStats[key] = stats
 	}
 
-	// Update basic info
+	lapState, lapStateExists := m.lapStates[key]
+	if !lapStateExists {
+		lapState = &DriverLapState{
+			lastCompletedLaps: driver.LapsCompleted,
+		}
+		m.lapStates[key] = lapState
+	}
+
 	stats.DriverName = driver.DriverName
 	stats.VehicleName = driver.VehicleName
 	stats.CarClass = driver.CarClass
@@ -262,34 +257,33 @@ func (m *Monitor) updateDriverStats(driver *models.StandingsData) {
 		stats.LastValidTimeIntoLap = driver.TimeIntoLap
 	}
 
-	// Update max speed
 	currentSpeed := driver.CarVelocity.Velocity * 3.6 // Convert to km/h
+
 	if currentSpeed > stats.MaxSpeed {
 		stats.MaxSpeed = currentSpeed
 	}
 
-	// Update best times
-	if driver.BestLapTime > 0 && (stats.BestLapTime == 0 || driver.BestLapTime < stats.BestLapTime) {
-		stats.BestLapTime = driver.BestLapTime
-	}
-	if driver.BestSectorTime1 > 0 && (stats.BestSector1 == 0 || driver.BestSectorTime1 < stats.BestSector1) {
-		stats.BestSector1 = driver.BestSectorTime1
+	if currentSpeed > lapState.currentLapMaxSpeed {
+		lapState.currentLapMaxSpeed = currentSpeed
 	}
 
-	// Calculate Sector 2 (BestSectorTime2 - BestSectorTime1) and Sector 3 (BestLapTime - BestSectorTime2)
-	if driver.BestSectorTime2 > 0 && driver.BestSectorTime1 > 0 {
-		sector2Time := driver.BestSectorTime2 - driver.BestSectorTime1
-		if sector2Time > 0 && (stats.BestSector2 == 0 || sector2Time < stats.BestSector2) {
-			stats.BestSector2 = sector2Time
+	if driver.LapsCompleted > lapState.lastCompletedLaps {
+		if driver.LastLapTime > 0 && (stats.BestLapTimeCalculated == 0 || driver.LastLapTime < stats.BestLapTimeCalculated) {
+			stats.MaxSpeedOnBestLapCalc = lapState.currentLapMaxSpeed
+			stats.BestLapTimeCalculated = driver.LastLapTime
+
+			stats.BestSector1Calculated = driver.LastSectorTime1
+			stats.BestSector2Calculated = driver.LastSectorTime2 - driver.LastSectorTime1
+			stats.BestSector3Calculated = driver.LastLapTime - driver.LastSectorTime2
 		}
+		lapState.currentLapMaxSpeed = currentSpeed
+		lapState.lastCompletedLaps = driver.LapsCompleted
 	}
 
-	if driver.BestLapTime > 0 && driver.BestSectorTime2 > 0 {
-		sector3Time := driver.BestLapTime - driver.BestSectorTime2
-		if sector3Time > 0 && (stats.BestSector3 == 0 || sector3Time < stats.BestSector3) {
-			stats.BestSector3 = sector3Time
-		}
-	}
+	stats.BestLapTime = driver.BestLapTime
+	stats.BestSector1 = driver.BestSectorTime1
+	stats.BestSector2 = driver.BestSectorTime2 - driver.BestSectorTime1
+	stats.BestSector3 = driver.BestLapTime - driver.BestSectorTime2
 }
 
 // logDriverData updates driver data in CSV logger (most recent state only)

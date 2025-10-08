@@ -121,16 +121,22 @@ type SessionData struct {
 
 // DriverStats tracks historical performance data for each driver
 type DriverStats struct {
-	DriverName           string
-	VehicleName          string
-	CarClass             string
-	MaxSpeed             float64
-	BestLapTime          float64
-	BestSector1          float64
-	BestSector2          float64
-	BestSector3          float64
-	Position             int
-	LapsCompleted        int
-	LastUpdate           time.Time
-	LastValidTimeIntoLap float64 // Store last valid TimeIntoLap for filtering
+	DriverName            string
+	VehicleName           string
+	CarClass              string
+	MaxSpeed              float64
+	BestLapTime           float64
+	BestSector1           float64
+	BestSector2           float64
+	BestSector3           float64
+	MaxSpeedOnBestLap     float64
+	BestLapTimeCalculated float64
+	BestSector1Calculated float64
+	BestSector2Calculated float64
+	BestSector3Calculated float64
+	MaxSpeedOnBestLapCalc float64
+	Position              int
+	LapsCompleted         int
+	LastUpdate            time.Time
+	LastValidTimeIntoLap  float64
 }
