@@ -301,38 +301,3 @@ func formatTime(seconds float64) string {
 	secs := seconds - float64(minutes*60)
 	return fmt.Sprintf("%d:%06.3f", minutes, secs)
 }
-
-func floatDiffers(a, b float64) bool {
-	const eps = 0.001
-	if a == 0 && b == 0 {
-		return false
-	}
-	return (a > b && a-b > eps) || (b > a && b-a > eps)
-}
-
-func padColorString(s string, width int) string {
-	visible := 0
-	result := ""
-	inTag := false
-	for i := 0; i < len(s); i++ {
-		if s[i] == '[' {
-			inTag = true
-		}
-		if !inTag {
-			if visible < width {
-				result += string(s[i])
-				visible++
-			}
-		} else {
-			result += string(s[i])
-		}
-		if s[i] == ']' {
-			inTag = false
-		}
-	}
-	for visible < width {
-		result += " "
-		visible++
-	}
-	return result
-}

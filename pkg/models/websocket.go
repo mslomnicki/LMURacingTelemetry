@@ -1,14 +1,10 @@
 package models
 
-import "time"
-
-// WSMessage represents a WebSocket message from the racing simulator
 type WSMessage struct {
 	Type string      `json:"type"`
 	Body interface{} `json:"body"`
 }
 
-// StandingsData represents individual driver/car telemetry data
 type StandingsData struct {
 	AttackMode         AttackMode `json:"attackMode"`
 	BestLapSectorTime1 float64    `json:"bestLapSectorTime1"`
@@ -72,14 +68,12 @@ type StandingsData struct {
 	VehicleNumber      string
 }
 
-// AttackMode represents attack mode status in Formula E or similar series
 type AttackMode struct {
 	RemainingCount int     `json:"remainingCount"`
 	TimeRemaining  float64 `json:"timeRemaining"`
 	TotalCount     int     `json:"totalCount"`
 }
 
-// CarVector represents 3D position/velocity/acceleration data
 type CarVector struct {
 	Velocity float64 `json:"velocity"`
 	X        float64 `json:"x"`
@@ -87,7 +81,6 @@ type CarVector struct {
 	Z        float64 `json:"z"`
 }
 
-// SessionData represents race session information
 type SessionData struct {
 	AmbientTemp        float64     `json:"ambientTemp"`
 	AveragePathWetness float64     `json:"averagePathWetness"`
@@ -119,28 +112,4 @@ type SessionData struct {
 	TrackTemp          float64     `json:"trackTemp"`
 	WindSpeed          CarVector   `json:"windSpeed"`
 	YellowFlagState    string      `json:"yellowFlagState"`
-}
-
-// DriverStats tracks historical performance data for each driver
-type DriverStats struct {
-	DriverName            string
-	VehicleName           string
-	VehicleModel          string
-	VehicleNumber         string
-	CarClass              string
-	SteamID               int64
-	MaxSpeed              float64
-	BestLapTime           float64
-	BestSector1           float64
-	BestSector2           float64
-	BestSector3           float64
-	MaxSpeedOnBestLap     float64
-	BestLapTimeCalculated float64
-	BestSector1Calculated float64
-	BestSector2Calculated float64
-	BestSector3Calculated float64
-	MaxSpeedOnBestLapCalc float64
-	Position              int
-	LapsCompleted         int
-	LastUpdate            time.Time
 }

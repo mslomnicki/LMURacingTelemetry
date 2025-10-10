@@ -6,15 +6,11 @@ import (
 	"io"
 	"log"
 	"net/http"
+
+	"github.com/mslomnicki/LMURacingTelemetry/pkg/models"
 )
 
-type VehicleInfo struct {
-	Id           string `json:"id"`
-	FullPathTree string `json:"fullPathTree"`
-	Number       string `json:"number"`
-}
-
-func GetAllVehicles(host string, port string) ([]VehicleInfo, error) {
+func GetAllVehicles(host string, port string) (map[string]models.VehicleInfo, error) {
 	url := fmt.Sprintf("http://%s:%s/rest/sessions/getAllVehicles", host, port)
 	resp, err := http.Get(url)
 	if err != nil {
@@ -36,10 +32,15 @@ func GetAllVehicles(host string, port string) ([]VehicleInfo, error) {
 		return nil, fmt.Errorf("response read error: %w", err)
 	}
 
-	var vehicles []VehicleInfo
+	var vehicles []models.VehicleInfo
 	if err := json.Unmarshal(body, &vehicles); err != nil {
 		return nil, fmt.Errorf("JSON decode error: %w", err)
 	}
 
-	return vehicles, nil
+	vehicleMap := make(map[string]models.VehicleInfo)
+	for _, v := range vehicles {
+		vehicleMap[v.Id] = v
+	}
+
+	return vehicleMap, nil
 }

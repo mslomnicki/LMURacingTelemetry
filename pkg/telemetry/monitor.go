@@ -32,7 +32,7 @@ type Monitor struct {
 	session      *models.SessionData
 	reconnecting bool
 	stopChan     chan struct{}
-	vehicles     map[string]restclient.VehicleInfo
+	vehicles     map[string]models.VehicleInfo
 	host         string
 	wsPort       string
 	restPort     string
@@ -202,10 +202,7 @@ func (m *Monitor) ensureVehiclesLoaded() error {
 	if err != nil {
 		return err
 	}
-	m.vehicles = make(map[string]restclient.VehicleInfo)
-	for _, v := range vehicles {
-		m.vehicles[v.Id] = v
-	}
+	m.vehicles = vehicles
 	return nil
 }
 
