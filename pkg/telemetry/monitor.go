@@ -23,19 +23,20 @@ type DriverLapState struct {
 }
 
 type Monitor struct {
-	conn         *websocket.Conn
-	display      *ui.Display
-	csvLogger    *logger.CSVLogger
-	drivers      map[string]*models.StandingsData
-	driverStats  map[string]*models.DriverStats
-	lapStates    map[string]*DriverLapState
-	session      *models.SessionData
-	reconnecting bool
-	stopChan     chan struct{}
-	vehicles     map[string]models.VehicleInfo
-	host         string
-	wsPort       string
-	restPort     string
+	conn            *websocket.Conn
+	display         *ui.Display
+	csvLogger       *logger.CSVLogger
+	drivers         map[string]*models.StandingsData
+	driverStats     map[string]*models.DriverStats
+	lapStates       map[string]*DriverLapState
+	session         *models.SessionData
+	reconnecting    bool
+	stopChan        chan struct{}
+	vehicles        map[string]models.VehicleInfo
+	host            string
+	wsPort          string
+	restPort        string
+	lastVehicleLoad time.Time
 }
 
 func NewMonitor(host string, wsPort string, restPort string) *Monitor {
@@ -197,12 +198,17 @@ func (m *Monitor) handleMessage(msgType string, body json.RawMessage) {
 	m.updateDisplay()
 }
 
-func (m *Monitor) ensureVehiclesLoaded() error {
+func (m *Monitor) loadVehicles() error {
+	if time.Since(m.lastVehicleLoad) < time.Minute {
+		return nil
+	}
+
 	vehicles, err := restclient.GetAllVehicles(m.host, m.restPort)
 	if err != nil {
 		return err
 	}
 	m.vehicles = vehicles
+	m.lastVehicleLoad = time.Now()
 	return nil
 }
 
@@ -260,6 +266,17 @@ func (m *Monitor) handleSessionInfo(body json.RawMessage) {
 	}
 }
 
+func getVehicleModelAndNumber(vinfo *models.VehicleInfo) (string, string) {
+	if vinfo == nil {
+		return "", ""
+	}
+	parts := strings.Split(vinfo.FullPathTree, ", ")
+	if len(parts) >= 3 {
+		return parts[2], vinfo.Number
+	}
+	return vinfo.FullPathTree, vinfo.Number
+}
+
 func (m *Monitor) updateDriverStats(driver *models.StandingsData) {
 	key := driver.DriverName
 
@@ -288,33 +305,26 @@ func (m *Monitor) updateDriverStats(driver *models.StandingsData) {
 			VehicleName: driver.VehicleName,
 			CarClass:    driver.CarClass,
 		}
-		found := false
+		var vinfo *models.VehicleInfo
 		if m.vehicles != nil {
-			if vinfo, ok := m.vehicles[driver.VehicleFilename]; ok {
-				parts := strings.Split(vinfo.FullPathTree, ", ")
-				if len(parts) >= 3 {
-					stats.VehicleModel = parts[2]
-				} else {
-					stats.VehicleModel = vinfo.FullPathTree
-				}
-				stats.VehicleNumber = vinfo.Number
-				found = true
+			if v, ok := m.vehicles[driver.VehicleFilename]; ok {
+				vinfo = &v
 			}
 		}
-		if !found {
-			if err := m.ensureVehiclesLoaded(); err == nil {
-				if vinfo, ok := m.vehicles[driver.VehicleFilename]; ok {
-					parts := strings.Split(vinfo.FullPathTree, ", ")
-					if len(parts) >= 3 {
-						stats.VehicleModel = parts[2]
-					} else {
-						stats.VehicleModel = vinfo.FullPathTree
-					}
-					stats.VehicleNumber = vinfo.Number
+		if vinfo == nil {
+			if err := m.loadVehicles(); err == nil {
+				if v, ok := m.vehicles[driver.VehicleFilename]; ok {
+					vinfo = &v
 				}
 			}
 		}
-
+		model, number := getVehicleModelAndNumber(vinfo)
+		if model == "" {
+			model = driver.VehicleName
+			number = "---"
+		}
+		stats.VehicleModel = model
+		stats.VehicleNumber = number
 		m.driverStats[key] = stats
 	}
 
