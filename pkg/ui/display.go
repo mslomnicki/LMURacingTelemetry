@@ -11,6 +11,7 @@ import (
 )
 
 var Version = "dev"
+var Year = "2025"
 
 type Display struct {
 	app        *tview.Application
@@ -49,7 +50,9 @@ func (d *Display) Setup() {
 
 	frame := tview.NewFrame(grid).
 		SetBorders(0, 0, 0, 0, 0, 0).
-		AddText(fmt.Sprintf("LMU Racing Telemetry %s", Version), true, tview.AlignCenter, tcell.ColorBlue)
+		AddText(fmt.Sprintf("LMU Racing Telemetry %s", Version), true, tview.AlignCenter, tcell.ColorLightBlue).
+		AddText(fmt.Sprintf("Copyright (C) %s Marek Słomnicki <marek@slomnicki.net>", Year), false, tview.AlignCenter, tcell.ColorBlue).
+		AddText("Press Ctrl+C or Q to quit", false, tview.AlignCenter, tcell.ColorGray)
 
 	d.app.SetRoot(frame, true).EnableMouse(true)
 
