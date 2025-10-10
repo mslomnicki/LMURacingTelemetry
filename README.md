@@ -1,14 +1,15 @@
 # LMU Racing Telemetry Monitor
 
-A comprehensive telemetry monitoring system for racing simulators with real-time data visualization and CSV logging.
+A real-time telemetry monitoring system for Le Mans Ultimate with live data visualization and CSV logging.
 
 ## Features
 
-- **Real-time Multi-Driver Monitoring**: Display all drivers simultaneously with live telemetry data
-- **Historical Statistics Tracking**: Track best lap times, sector times, and maximum speeds per driver
-- **CSV Data Logging**: Automatic logging with date/track/session-based filenames
-- **Flexible Connectivity**: Connect to any racing simulator WebSocket endpoint
-- **Clean Terminal UI**: Multi-panel interface with session info, live data, and statistics
+- **Real-time Multi-Driver Monitoring**: Display all drivers simultaneously with live telemetry data including position, lap times, speed, and status
+- **Fullscreen Display Modes**: Toggle fullscreen view for drivers or statistics panels for better visibility
+- **Historical Statistics Tracking**: Track best lap times, sector times, and maximum speeds for each driver
+- **CSV Data Logging**: Automatic logging of all telemetry data with organized filenames
+- **Session Information**: Live display of track name, session type, weather conditions, and temperatures
+- **Clean Terminal Interface**: Multi-panel interface optimized for terminal viewing
 
 ## Installation
 
@@ -21,18 +22,9 @@ Download the latest release for your platform from the [Releases page](https://g
 - **macOS AMD64**: `lmu-racing-telemetry-macos-amd64`
 - **macOS ARM64**: `lmu-racing-telemetry-macos-arm64`
 
-### Build from Source
+## How to Run
 
-```bash
-# Clone the repository
-git clone https://github.com/mslomnicki/LMURacingTelemetry.git
-cd LMURacingTelemetry
-
-# Build the application
-go build -o lmu-racing-telemetry .
-```
-
-## Usage
+### Basic Usage
 
 ```bash
 # Connect to localhost (default)
@@ -43,80 +35,60 @@ go build -o lmu-racing-telemetry .
 
 # Connect to custom port
 ./lmu-racing-telemetry -host 192.168.0.121 -port 8080
-
-# Show help
-./lmu-racing-telemetry -help
 ```
 
-## Project Structure
+### Keyboard Controls
 
-```
-├── main.go                     # Application entry point
-├── pkg/
-│   ├── models/
-│   │   └── types.go           # Data structures for WebSocket messages
-│   ├── telemetry/
-│   │   └── monitor.go         # Core telemetry monitoring logic
-│   ├── ui/
-│   │   └── display.go         # Terminal user interface components
-│   └── logger/
-│       └── csv.go             # CSV data logging functionality
-└── go.mod
-```
+- **Ctrl+C** or **Q** - Quit the application
+- **F** - Toggle fullscreen view for drivers panel
+- **S** - Toggle fullscreen view for statistics panel
 
-## Package Overview
+## Display Panels
 
-### `pkg/models`
-Contains all data structures for WebSocket messages, driver data, and session information.
+The interface is divided into three main sections:
 
-### `pkg/telemetry`
-Core telemetry monitoring system that:
-- Manages WebSocket connections
-- Processes incoming telemetry data
-- Maintains driver statistics
-- Orchestrates UI updates and CSV logging
+1. **Session Info Panel** (Top)
+   - Track name and session type
+   - Event time
+   - Number of connected vehicles
+   - Track and air temperature
+   - Rain percentage
 
-### `pkg/ui`
-Terminal user interface using tview library:
-- Session information panel
-- Live driver data table
-- Historical statistics display
-- Keyboard controls (Ctrl+C to exit)
+2. **All Drivers - Live Data Panel** (Middle)
+   - Current position
+   - Driver name and vehicle details
+   - Laps completed
+   - Current lap time
+   - Best lap time
+   - Current speed
+   - Status (pit, flags, etc.)
 
-### `pkg/logger`
-CSV logging functionality:
-- Automatic filename generation based on date/track/session
-- Real-time data logging for all drivers
-- Proper file handling and cleanup
+3. **Driver Statistics & Records Panel** (Bottom)
+   - Best lap times (official and calculated)
+   - Best sector times (S1, S2, S3)
+   - Maximum speeds
+   - Per-driver historical records
 
 ## CSV Output
 
 CSV files are automatically created with the format:
-`YYYY-MM-DD_HH-MM-SS_TrackName_SessionType_telemetry.csv`
-
-Example: `2025-10-05_19-00-23_Silverstone_Practice_telemetry.csv`
-
-**CSV Format:**
-- **Delimiter**: Semicolon (`;`)
-- **Fields**: DriverName, VehicleName, CarClass, LapsCompleted, MaxSpeed, BestLapTime, BestSector1, BestSector2, BestSector3
-- **Timing Format**: MM:SS.sss (e.g., `1:23.456`)
-
-## Dependencies
-
-- `github.com/gorilla/websocket` - WebSocket client
-- `github.com/rivo/tview` - Terminal UI framework
-- `github.com/gdamore/tcell/v2` - Terminal control library
-
-## WebSocket Protocol
-
-The application expects WebSocket messages in the format:
-```json
-{
-  "type": "standings|sessionInfo",
-  "body": { ... }
-}
+```
+YYYY-MM-DD_HH-MM-SS_TrackName_SessionType_telemetry.csv
 ```
 
-Supports message types:
-- `standings`: Driver telemetry data
-- `sessionInfo`: Track and session information
+Example: `2025-10-10_16-40-39_Bahrain_International_Circuit_PRACTICE1_telemetry.csv`
+
+The CSV file contains semicolon-delimited data with fields for driver name, vehicle, car class, laps, speeds, and all timing information.
+
+## Requirements
+
+- Le Mans Ultimate or compatible racing simulator with WebSocket telemetry enabled
+- Terminal with color support for best viewing experience
+
+## License
+
+See LICENSE file for details.
+
+## Author
+
+Copyright (C) 2025 Marek Słomnicki <marek@slomnicki.net>

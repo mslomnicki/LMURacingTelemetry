@@ -14,11 +14,16 @@ var Version = "dev"
 var Year = "2025"
 
 type Display struct {
-	app        *tview.Application
-	sessionBox *tview.TextView
-	driversBox *tview.TextView
-	statsBox   *tview.TextView
-	versionBox *tview.TextView
+	app               *tview.Application
+	sessionBox        *tview.TextView
+	driversBox        *tview.TextView
+	statsBox          *tview.TextView
+	versionBox        *tview.TextView
+	grid              *tview.Grid
+	frame             *tview.Frame
+	fullscreenDrivers bool
+	fullscreenStats   bool
+	prevFocus         tview.Primitive
 }
 
 func NewDisplay() *Display {
@@ -40,25 +45,34 @@ func (d *Display) Setup() {
 	d.statsBox.SetBorder(true).SetTitle(" Driver Statistics & Records ").SetTitleAlign(tview.AlignLeft)
 	d.statsBox.SetDynamicColors(true)
 
-	grid := tview.NewGrid().
+	d.grid = tview.NewGrid().
 		SetRows(3, 0, 0).
 		SetBorders(true)
 
-	grid.AddItem(d.sessionBox, 0, 0, 1, 1, 0, 0, false).
+	d.grid.AddItem(d.sessionBox, 0, 0, 1, 1, 0, 0, false).
 		AddItem(d.driversBox, 1, 0, 1, 1, 0, 0, true).
 		AddItem(d.statsBox, 2, 0, 1, 1, 0, 0, true)
 
-	frame := tview.NewFrame(grid).
+	d.frame = tview.NewFrame(d.grid).
 		SetBorders(0, 0, 0, 0, 0, 0).
 		AddText(fmt.Sprintf("LMU Racing Telemetry %s", Version), true, tview.AlignCenter, tcell.ColorLightBlue).
 		AddText(fmt.Sprintf("Copyright (C) %s Marek Słomnicki <marek@slomnicki.net>", Year), false, tview.AlignCenter, tcell.ColorBlue).
-		AddText("Press Ctrl+C or Q to quit", false, tview.AlignCenter, tcell.ColorGray)
+		AddText("Press Ctrl+C or Q to quit | F - fullscreenDrivers drivers | S - fullscreenDrivers stats", false, tview.AlignCenter, tcell.ColorGray)
 
-	d.app.SetRoot(frame, true).EnableMouse(true)
+	d.app.SetRoot(d.frame, true).EnableMouse(true)
 
 	d.app.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		if event.Key() == tcell.KeyCtrlC || event.Rune() == 'q' || event.Rune() == 'Q' {
 			d.app.Stop()
+			return nil
+		}
+		if event.Rune() == 'f' || event.Rune() == 'F' {
+			d.toggleDriversFullscreen()
+			return nil
+		}
+		if event.Rune() == 's' || event.Rune() == 'S' {
+			d.toggleStatsFullscreen()
+			return nil
 		}
 		return event
 	})
@@ -284,6 +298,46 @@ func (d *Display) Run() error {
 
 func (d *Display) Stop() {
 	d.app.Stop()
+}
+
+func (d *Display) toggleDriversFullscreen() {
+	if !d.fullscreenDrivers {
+		d.prevFocus = d.app.GetFocus()
+		fullscreenFrame := tview.NewFrame(d.driversBox).
+			SetBorders(0, 0, 0, 0, 0, 0).
+			AddText(fmt.Sprintf("LMU Racing Telemetry %s", Version), true, tview.AlignCenter, tcell.ColorLightBlue).
+			AddText(fmt.Sprintf("Copyright (C) %s Marek Słomnicki <marek@slomnicki.net>", Year), false, tview.AlignCenter, tcell.ColorBlue).
+			AddText("Press Ctrl+C or Q to quit | F - fullscreenDrivers drivers | S - fullscreenDrivers stats", false, tview.AlignCenter, tcell.ColorGray)
+		d.app.SetRoot(fullscreenFrame, true)
+		d.app.SetFocus(d.driversBox)
+		d.fullscreenDrivers = true
+	} else {
+		d.app.SetRoot(d.frame, true)
+		if d.prevFocus != nil {
+			d.app.SetFocus(d.prevFocus)
+		}
+		d.fullscreenDrivers = false
+	}
+}
+
+func (d *Display) toggleStatsFullscreen() {
+	if !d.fullscreenStats {
+		d.prevFocus = d.app.GetFocus()
+		fullscreenFrame := tview.NewFrame(d.statsBox).
+			SetBorders(0, 0, 0, 0, 0, 0).
+			AddText(fmt.Sprintf("LMU Racing Telemetry %s", Version), true, tview.AlignCenter, tcell.ColorLightBlue).
+			AddText(fmt.Sprintf("Copyright (C) %s Marek Słomnicki <marek@slomnicki.net>", Year), false, tview.AlignCenter, tcell.ColorBlue).
+			AddText("Press Ctrl+C or Q to quit | F - fullscreenDrivers drivers | S - fullscreenDrivers stats", false, tview.AlignCenter, tcell.ColorGray)
+		d.app.SetRoot(fullscreenFrame, true)
+		d.app.SetFocus(d.statsBox)
+		d.fullscreenStats = true
+	} else {
+		d.app.SetRoot(d.frame, true)
+		if d.prevFocus != nil {
+			d.app.SetFocus(d.prevFocus)
+		}
+		d.fullscreenStats = false
+	}
 }
 
 func truncate(s string, length int) string {
